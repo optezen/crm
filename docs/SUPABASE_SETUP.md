@@ -20,7 +20,7 @@ Needs Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-devel
 ```bash
 supabase init                      # once; creates supabase/config.toml, leaves migrations alone
 supabase start
-supabase db reset                  # applies supabase/migrations/0001..0003 in order
+supabase db reset                  # applies supabase/migrations/0001..0004 in order
 supabase status -o env             # API_URL, ANON_KEY, SERVICE_ROLE_KEY
 ```
 
@@ -34,7 +34,7 @@ cp .env.test.example .env.test.local   # fill in the three SUPABASE_TEST_* value
 ## B. Hosted project
 
 1. Create a project at supabase.com. Use a **separate** project for tests.
-2. `supabase link --project-ref <ref>` then `supabase db push` (applies 0001, 0002, 0003; never edit an applied migration, add 0004+).
+2. `supabase link --project-ref <ref>` then `supabase db push` (applies 0001-0004; never edit an applied migration, add 0005+).
 3. Authentication → Providers: Email enabled. Authentication → URL Configuration: Site URL = your origin; Redirect URLs include `<origin>/auth/callback`.
 4. Authentication → Settings: decide on "Confirm email" (magic-link sign-in works either way) and whether public signups stay open. `signInWithOtp` creates a user on first use; 0003 caps each user at 5 owned organizations.
 5. Production email: Supabase's built-in SMTP is heavily rate-limited; configure a custom SMTP provider.

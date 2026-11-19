@@ -1,10 +1,10 @@
-# Business OS — Revised Product Roadmap
+# Optizen — Revised Product Roadmap
 
 **Planning date:** 17 November 2026. **Pilot target:** 1 December 2026. **Team:** 3 developers with AI coding tools. **Deployment target:** Fly.io (web/API/worker), Supabase (PostgreSQL/Auth/Storage). A pilot is not a public commercial launch.
 
 ## Product definition
 
-AI-native business OS whose core is a metadata-defined, multi-tenant system of records + workflows + permissions + views. Three equivalent configuration surfaces: chat, voice (transcribe to chat instructions), visual editor. Each writes to one versioned, typed configuration model. Day-to-day work mode differs from administrator builder mode.
+AI-native business operating system whose core is a metadata-defined, multi-tenant system of records + workflows + permissions + views. Three equivalent configuration surfaces: chat, voice (transcribe to chat instructions), visual editor. Each writes to one versioned, typed configuration model. Day-to-day work mode differs from administrator builder mode.
 
 ## Invariants
 

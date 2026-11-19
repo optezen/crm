@@ -6,3 +6,5 @@ node_modules
 *.log
 .DS_Store
 .env.test.local
+*.tsbuildinfo
+supabase/.temp/

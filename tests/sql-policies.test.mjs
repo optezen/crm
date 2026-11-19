@@ -34,9 +34,9 @@ before(async () => {
   for (const f of readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) await db.exec(readFileSync(new URL(f, dir), 'utf8'));
 });
 
-test('migrations 0001-0003 apply in order', async () => {
+test('all migrations apply in order', async () => {
   const r = await db.query(`select count(*)::int n from pg_tables where schemaname='public'`);
-  assert.equal(r.rows[0].n, 4);
+  assert.equal(r.rows[0].n, 9); // 4 foundation tables + contacts, leads, lead_activities, tasks, domain_events (0004)
 });
 
 test('anon has no table privileges and cannot call create_organization', async () => {

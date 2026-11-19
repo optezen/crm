@@ -1,4 +1,4 @@
-# Business OS — Foundation Starter
+# Optizen — Foundation Starter
 
 A **local, non-production** Next.js user experience starter for an AI-first, configurable business operating system. Includes three industry templates (skin clinic, salon, scrap yard), a role-neutral overview, and a basic configuration studio with module toggles and a **static** automation review demonstration.
 
@@ -13,10 +13,11 @@ Open http://localhost:3000. `npm test` runs unit + SQL policy tests; `npm run te
 
 ## What is real and what is not
 
-- Real: onboarding (name → industry → review), typed `WorkspaceConfig`, server-side workspace resolution from `organization_members`, role-gated Builder (read-only), Work/Builder routes, reusable UI components, Supabase migrations (`0001` draft, `0002` onboarding RPC, `0003` security hardening), sign-out, session-refresh proxy.
+- Real: onboarding (name → industry → review), typed `WorkspaceConfig`, server-side workspace resolution from `organization_members`, role-gated Builder (read-only), Work/Builder routes, reusable UI components, Supabase migrations (`0001` draft, `0002` onboarding RPC, `0003` security hardening, `0004` CRM engine), sign-out, session-refresh proxy.
 - Industry JSON in `config/industries.json` are **onboarding templates only**; there is no industry switcher.
 - Needs setup: Supabase env vars (`.env.example`), apply migrations, enable email auth with redirect URL `<origin>/auth/callback`. Without them the app shows setup notices and saves nothing.
-- Not implemented: record storage, config editing/publishing, AI, voice, inventory, billing, workflows (shown as "Planned").
+- Real (CRM data engine, `0004`): organization-scoped leads and contacts (deduplicated by phone/email), Work Mode lead list/search/filter/pagination/detail/edit, pipeline stages from the published configuration, role-based visibility and assignment (owner/admin/manager see all; employees see their own and unassigned leads), notes and activity history, follow-up tasks (owner, due date, status, outcome), team management at `/team`, and a transactional domain-event outbox (`domain_events`: `lead.created`, `lead.assigned`, `task.completed`, ...). All writes are database functions that re-check membership and role; see `src/lib/crm/service.ts`.
+- Not implemented: config editing/publishing, event consumers/webhooks, a separate contacts screen, member removal, AI, voice, inventory, billing, workflows (shown as "Planned").
 
 ## Operating principles
 

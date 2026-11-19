@@ -22,7 +22,7 @@ export function Wizard({ blocked }: { blocked?: string }) {
   const submit = () => start(async () => { const r = await createWorkspaceAction(name, industry); if (r?.error) setError(r.error); });
 
   return <div className="stack">
-    <div><h1>Set up your workspace</h1><p className="muted">Three short steps. You can change the configuration later in Builder.</p></div>
+    <div><h1>Set up your Optizen workspace</h1><p className="muted">Three short steps. You can change the configuration later in Builder.</p></div>
     <ol className="steps" aria-label="Progress" style={{ listStyle: 'none', padding: 0, margin: 0 }}>{STEPS.map((t, i) => <li key={t} aria-current={i === step ? 'step' : undefined}>{i + 1}. {t}</li>)}</ol>
     {step === 0 && <Field id="name" label="Business name" value={name} onChange={e => setName(e.target.value)} autoFocus autoComplete="organization" error={error} />}
     {step === 1 && <fieldset className="choices" aria-describedby={error ? 'ind-err' : undefined}><legend className="sr-only">Industry</legend>

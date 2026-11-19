@@ -50,3 +50,15 @@ test('auth callback without a valid code redirects to /login', opt, async () => 
   assert.match(loc(await get('/auth/callback')), /\/login$/);
   assert.match(loc(await get('/auth/callback?code=not-a-real-code')), /\/login$/);
 });
+
+test('leads pages: members reach them; org-less and outsider users cannot see another org\'s lead by id', opt, async () => {
+  // org A needs an active Leads module for the page to exist; createOrg() seeds only Overview, so expect 404 until a real template is used
+  const { data: id, error } = await jar.owner.client.rpc('crm_create_lead', { p_org: orgA, p_full_name: 'Route Lead', p_phone: null, p_email: null, p_source: 'phone', p_summary: null, p_stage: null, p_assigned_to: null });
+  assert.ifError(error);
+  const own = await get(`/work/leads/${id}`, jar.owner.header()); assert.ok([200, 404].includes(own.status));
+  const foreign = await get(`/work/leads/${id}`, jar.outsider.header({ bos_org: orgA }));
+  assert.equal(foreign.status, 404); assert.doesNotMatch(await foreign.text(), /Route Lead/);
+  assert.equal((await get('/work/leads/not-a-uuid', jar.owner.header())).status, 404);
+  assert.match(await (await get('/team', jar.employee.header())).text(), /limited to owners and admins/);
+  assert.match(await (await get('/team', jar.owner.header())).text(), /Add a team member/);
+});

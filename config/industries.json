@@ -1,0 +1,29 @@
+{
+  "clinic": {
+    "name":"Skin Clinic", "subtitle":"Patients, treatments, and clinic operations", "icon":"✦",
+    "modules":["Overview","Leads","Patients","Appointments","Treatments","Inventory","Billing","Automations"],
+    "metrics":[{"label":"Appointments today","value":"18"},{"label":"Revenue today","value":"₹1.42L"},{"label":"New enquiries","value":"32"},{"label":"Stock alerts","value":"4"}],
+    "records":[{"label":"Patients","fields":["full_name","phone","consent_status","assigned_practitioner"]},{"label":"Treatments","fields":["treatment_name","duration","stock_recipe"]}],
+    "pipeline":["New enquiry","Contacted","Consultation booked","Visited","Treatment planned","Won / Lost"],
+    "tasks":["Call 7 new enquiries","Confirm 3 consultations","Reorder consumables"],
+    "examplePrompt":"When a treatment session is completed, record actual usage, deduct stock, and update package balance."
+  },
+  "salon": {
+    "name":"Salon", "subtitle":"Clients, bookings, and services", "icon":"✂",
+    "modules":["Overview","Leads","Clients","Bookings","Services","Inventory","POS & Billing","Automations"],
+    "metrics":[{"label":"Bookings today","value":"26"},{"label":"Revenue today","value":"₹48.5K"},{"label":"Free slots","value":"8"},{"label":"Returning clients","value":"12"}],
+    "records":[{"label":"Clients","fields":["full_name","phone","preferences","loyalty_status"]},{"label":"Services","fields":["service_name","stylist","duration","product_recipe"]}],
+    "pipeline":["New enquiry","Contacted","Booked","Visited","Paid","Retention"],
+    "tasks":["Confirm 5 bookings","Check stylist capacity","Restock hair colour"],
+    "examplePrompt":"After a hair colouring service, deduct used supplies, record payment, and create a rebooking reminder."
+  },
+  "scrap": {
+    "name":"Scrap Yard", "subtitle":"Vehicle enquiries, pickups, and processing", "icon":"▣",
+    "modules":["Overview","Leads","Vehicles","Quotes","Pickups","Documents","Yard Ops","Payments","Automations"],
+    "metrics":[{"label":"New enquiries","value":"34"},{"label":"Pickups scheduled","value":"12"},{"label":"Pending documents","value":"8"},{"label":"Payments recorded","value":"₹2.8L"}],
+    "records":[{"label":"Vehicles","fields":["registration_number","vehicle_make","owner","rc_status","pickup_address"]},{"label":"Pickups","fields":["vehicle_id","driver","schedule","completion_status"]}],
+    "pipeline":["Enquiry","Quoted","Accepted","Documents","Pickup scheduled","Yard received","Closed"],
+    "tasks":["Collect 5 missing RCs","Assign 4 pickup drivers","Review overdue deregistrations"],
+    "examplePrompt":"After a scrap quote is accepted, request the RC, assign a coordinator, and escalate if pickup is delayed 48 hours."
+  }
+}

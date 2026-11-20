@@ -1,7 +1,7 @@
 // LIVE Supabase: signup, login, workspace creation, signout, returning-user persistence.
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { guard, admin, anon, newUser, createOrg, cleanup } from './env.mjs';
+import { guard, admin, anon, newUser, createOrg, definition, cleanup } from './env.mjs';
 import { resolveMembership } from '../../src/lib/workspace/resolve.ts';
 
 const opt = { skip: guard ?? false };
@@ -42,7 +42,7 @@ test('new user has no organization; creation derives ownership from the JWT; ret
   assert.ifError((await u.client.auth.signOut({ scope: 'global' })).error);
   assert.ok((await anon().auth.getUser(token)).error, 'revoked session must no longer validate');
   assert.deepEqual((await u.client.from('organizations').select('id')).data ?? [], [], 'signed-out client sees nothing');
-  assert.ok((await u.client.rpc('create_organization', { p_name: 'Nope', p_industry: 'clinic', p_definition: { schemaVersion: 1 } })).error);
+  assert.ok((await u.client.rpc('create_workspace', { p_name: 'Nope', p_description: null, p_preset: null, p_definition: definition('Nope') })).error);
 
   // returning user: fresh client, fresh login, same workspace resolved from membership
   const again = anon();
@@ -53,9 +53,10 @@ test('new user has no organization; creation derives ownership from the JWT; ret
 
 test('client cannot create an organization for someone else or bypass validation', opt, async () => {
   const u = await newUser('v');
-  const bad = (n, i, d) => u.client.rpc('create_organization', { p_name: n, p_industry: i, p_definition: d });
-  assert.equal((await bad('x', 'clinic', { schemaVersion: 1 })).error?.code, '22023');
-  assert.equal((await bad('Valid', 'banking', { schemaVersion: 1 })).error?.code, '22023');
-  assert.equal((await bad('Valid', 'clinic', []))?.error?.code, '22023');
-  assert.ok((await anon().rpc('create_organization', { p_name: 'Valid', p_industry: 'clinic', p_definition: { schemaVersion: 1 } })).error, 'anon denied');
+  const bad = (n, d, def) => u.client.rpc('create_workspace', { p_name: n, p_description: d, p_preset: null, p_definition: def });
+  assert.equal((await bad('x', null, definition('x'))).error?.code, '22023');
+  assert.equal((await bad('Valid', 'x'.repeat(1001), definition('Valid'))).error?.code, '22023');
+  assert.equal((await bad('Valid', null, []))?.error?.code, '22023');
+  assert.equal((await bad('Valid', null, { schemaVersion: 1 })).error?.code, '22023'); // no core modules / pipeline
+  assert.ok((await anon().rpc('create_workspace', { p_name: 'Valid', p_description: null, p_preset: null, p_definition: definition('Valid') })).error, 'anon denied');
 });

@@ -5,7 +5,7 @@ import { guard, anon, newUser, createOrg, cleanup } from './env.mjs';
 
 const opt = { skip: guard ?? false };
 let A, B, orgA, orgB;
-before(async () => { if (guard) return; A = await newUser('a'); B = await newUser('b'); orgA = await createOrg(A, 'Org A'); orgB = await createOrg(B, 'Org B', 'salon'); });
+before(async () => { if (guard) return; A = await newUser('a'); B = await newUser('b'); orgA = await createOrg(A, 'Org A'); orgB = await createOrg(B, 'Org B'); });
 after(cleanup);
 
 const T = ['organizations', 'organization_members', 'workspace_configuration_versions', 'audit_events'];
@@ -31,7 +31,7 @@ test('A cannot write to B\'s data (or its own) through the API', opt, async () =
     A.client.from('workspace_configuration_versions').update({ definition: { schemaVersion: 1 } }).eq('organization_id', orgB),
     A.client.from('workspace_configuration_versions').insert({ organization_id: orgB, revision: 99, status: 'published', definition: { schemaVersion: 1 } }),
     A.client.from('audit_events').insert({ organization_id: orgB, event_name: 'forged' }),
-    A.client.from('organizations').insert({ name: 'direct insert', industry_template: 'clinic' }), // must go through create_organization
+    A.client.from('organizations').insert({ name: 'direct insert' }), // must go through create_workspace
   ];
   for (const r of await Promise.all(attempts)) assert.ok(r.error || r.count === 0, 'write must be rejected');
   assert.equal((await B.client.from('organizations').select('name').eq('id', orgB).single()).data.name, before);
@@ -41,5 +41,5 @@ test('A cannot write to B\'s data (or its own) through the API', opt, async () =
 test('unauthenticated (anon key) client sees and writes nothing', opt, async () => {
   const c = anon();
   for (const t of T) { const r = await c.from(t).select('*'); assert.ok(r.error || r.data.length === 0, `${t} not readable by anon`); }
-  assert.ok((await c.from('organizations').insert({ name: 'anon org', industry_template: 'clinic' })).error);
+  assert.ok((await c.from('organizations').insert({ name: 'anon org' })).error);
 });

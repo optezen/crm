@@ -1,18 +1,24 @@
 import { getWorkspaceState } from '../../../lib/workspace/service';
 import { canBuild } from '../../../lib/workspace/resolve';
-import { Card } from '../../../components/ui/Card';
-import { DataTable } from '../../../components/ui/DataTable';
+import { loadDraft, listVersions } from '../../../lib/workspace/builder';
+import { supabaseServer } from '../../../lib/supabase/server';
+import { aiConfigured } from '../../../lib/workspace/ai';
+import { ensureCore } from '../../../lib/workspace/schema';
 import { Notice } from '../../../components/ui/Notice';
+import { BuilderEditor } from './BuilderEditor';
+
+const hash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return String(h); };
 
 export default async function Builder() {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
   if (!canBuild(s.role)) return <Notice title="Builder is limited to owners and admins">Ask an owner or admin to change the workspace.</Notice>;
-  const c = s.config;
+  const db = await supabaseServer();
+  const [draft, versions] = await Promise.all([loadDraft(db, s.organizationId), listVersions(db, s.organizationId)]);
+  const published = ensureCore(s.config), draftCfg = draft.ok && draft.value ? ensureCore(draft.value) : null;
   return <div className="stack">
-    <div className="top"><div><span className="eyebrow">Optizen Builder</span><h1>Workspace configuration</h1><p className="muted">The published definition your workspace runs on.</p></div></div>
-    <Notice title="Read-only for now">Editing, AI drafting and publishing new versions are not built yet. This page shows the current published configuration.</Notice>
-    <DataTable caption="Modules" rows={c.modules} empty="No modules." columns={[{ header: 'Module', cell: m => m.label }, { header: 'Status', cell: m => m.status === 'active' ? 'Active' : 'Planned' }]} />
-    <DataTable caption="Record types" rows={c.objects} empty="No record types." columns={[{ header: 'Type', cell: o => o.label }, { header: 'Fields', cell: o => <span className="chips">{o.fields.map(f => <span className="chip" key={f.key}>{f.label}</span>)}</span> }]} />
-    <Card title="Pipeline stages"><ol style={{ margin: 0, paddingLeft: 20 }}>{c.pipeline.stages.map(x => <li key={x}>{x}</li>)}</ol></Card>
+    <div className="top"><div><span className="eyebrow">Optizen Builder</span><h1>Workspace configuration</h1><p className="muted">Create modules and fields, edit the lead pipeline, preview the changes, and publish a new version. Roll back any time by restoring an earlier version.</p></div></div>
+    <Notice title="Your data is protected">Renaming a field or module never changes stored records. Hiding a field keeps its values. A field, module or type that records already use cannot be removed or have its type changed; hide it instead.</Notice>
+    {!draft.ok && <Notice title="Draft could not be loaded">{draft.error}</Notice>}
+    <BuilderEditor key={hash(JSON.stringify([published, draftCfg]))} published={published} draft={draftCfg} aiAvailable={aiConfigured()} versions={versions.ok ? versions.value : []} />
   </div>;
 }

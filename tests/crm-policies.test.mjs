@@ -11,7 +11,7 @@ const dir = new URL('../supabase/migrations/', import.meta.url);
 const db = new PGlite({ extensions: { pgcrypto } });
 const id = n => `00000000-0000-0000-0000-0000000000${n}`;
 const [OWN, OWN2, MGR, EMP, EMP2, ADM, NEWBIE] = ['a1', 'b2', 'c3', 'd4', 'e5', 'f6', '07'].map(id);
-const def = n => ({ schemaVersion: 1, businessName: n, industryTemplate: 'clinic', modules: [], objects: [], pipeline: { stages: ['New enquiry', 'Contacted', 'Won / Lost'] } });
+const def = n => ({ schemaVersion: 1, businessName: n, modules: [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }], objects: [], pipeline: { stages: ['New enquiry', 'Contacted', 'Won / Lost'] } });
 
 async function as(user, sql, params = []) {
   await db.exec(`set role ${user ? 'authenticated' : 'anon'}; select set_config('request.jwt.claim.sub', '${user ?? ''}', false)`);
@@ -36,8 +36,8 @@ before(async () => {
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
     insert into auth.users values ('${OWN}','owner1@x.test'),('${OWN2}','owner2@x.test'),('${MGR}','mgr@x.test'),('${EMP}','emp@x.test'),('${EMP2}','emp2@x.test'),('${ADM}','admin@x.test'),('${NEWBIE}','Newbie@X.test');`);
   for (const f of readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) await db.exec(readFileSync(new URL(f, dir), 'utf8'));
-  ORG1 = (await as(OWN, 'select public.create_organization($1,$2,$3::jsonb) id', ['Org One', 'clinic', JSON.stringify(def('Org One'))])).rows[0].id;
-  ORG2 = (await as(OWN2, 'select public.create_organization($1,$2,$3::jsonb) id', ['Org Two', 'clinic', JSON.stringify(def('Org Two'))])).rows[0].id;
+  ORG1 = (await as(OWN, 'select public.create_workspace($1,null,null,$2::jsonb) id', ['Org One', JSON.stringify(def('Org One'))])).rows[0].id;
+  ORG2 = (await as(OWN2, 'select public.create_workspace($1,null,null,$2::jsonb) id', ['Org Two', JSON.stringify(def('Org Two'))])).rows[0].id;
   await rpc(OWN, 'crm_add_member', ORG1, 'mgr@x.test', 'manager');
   await rpc(OWN, 'crm_add_member', ORG1, 'emp@x.test', 'employee');
   await rpc(OWN, 'crm_add_member', ORG1, 'emp2@x.test', 'employee');

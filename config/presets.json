@@ -1,0 +1,174 @@
+[
+ {
+  "key": "clinic",
+  "name": "Clinic & healthcare",
+  "summary": "Patients, treatments, and clinic operations",
+  "keywords": [
+   "clinic",
+   "patient",
+   "treatment",
+   "doctor",
+   "dermatolog",
+   "skin",
+   "dental",
+   "hospital",
+   "physio",
+   "medical",
+   "therapy",
+   "wellness",
+   "consultation"
+  ],
+  "modules": [
+   "Overview",
+   "Leads",
+   "Patients",
+   "Appointments",
+   "Treatments",
+   "Inventory",
+   "Billing",
+   "Automations"
+  ],
+  "records": [
+   {
+    "label": "Patients",
+    "fields": [
+     "full_name",
+     "phone",
+     "consent_status",
+     "assigned_practitioner"
+    ]
+   },
+   {
+    "label": "Treatments",
+    "fields": [
+     "treatment_name",
+     "duration",
+     "stock_recipe"
+    ]
+   }
+  ],
+  "pipeline": [
+   "New enquiry",
+   "Contacted",
+   "Consultation booked",
+   "Visited",
+   "Treatment planned",
+   "Won / Lost"
+  ]
+ },
+ {
+  "key": "salon",
+  "name": "Salon & personal services",
+  "summary": "Clients, bookings, and services",
+  "keywords": [
+   "salon",
+   "hair",
+   "beauty",
+   "spa",
+   "stylist",
+   "barber",
+   "nail",
+   "makeup",
+   "grooming",
+   "booking",
+   "appointment"
+  ],
+  "modules": [
+   "Overview",
+   "Leads",
+   "Clients",
+   "Bookings",
+   "Services",
+   "Inventory",
+   "POS & Billing",
+   "Automations"
+  ],
+  "records": [
+   {
+    "label": "Clients",
+    "fields": [
+     "full_name",
+     "phone",
+     "preferences",
+     "loyalty_status"
+    ]
+   },
+   {
+    "label": "Services",
+    "fields": [
+     "service_name",
+     "stylist",
+     "duration",
+     "product_recipe"
+    ]
+   }
+  ],
+  "pipeline": [
+   "New enquiry",
+   "Contacted",
+   "Booked",
+   "Visited",
+   "Paid",
+   "Retention"
+  ]
+ },
+ {
+  "key": "scrap",
+  "name": "Vehicle scrapping & recycling",
+  "summary": "Vehicle enquiries, pickups, and processing",
+  "keywords": [
+   "scrap",
+   "vehicle",
+   "car",
+   "junk",
+   "recycl",
+   "yard",
+   "pickup",
+   "salvage",
+   "metal",
+   "towing",
+   "dismantl"
+  ],
+  "modules": [
+   "Overview",
+   "Leads",
+   "Vehicles",
+   "Quotes",
+   "Pickups",
+   "Documents",
+   "Yard Ops",
+   "Payments",
+   "Automations"
+  ],
+  "records": [
+   {
+    "label": "Vehicles",
+    "fields": [
+     "registration_number",
+     "vehicle_make",
+     "owner",
+     "rc_status",
+     "pickup_address"
+    ]
+   },
+   {
+    "label": "Pickups",
+    "fields": [
+     "vehicle_id",
+     "driver",
+     "schedule",
+     "completion_status"
+    ]
+   }
+  ],
+  "pipeline": [
+   "Enquiry",
+   "Quoted",
+   "Accepted",
+   "Documents",
+   "Pickup scheduled",
+   "Yard received",
+   "Closed"
+  ]
+ }
+]

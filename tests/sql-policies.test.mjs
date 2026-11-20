@@ -10,7 +10,7 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 const dir = new URL('../supabase/migrations/', import.meta.url);
 const db = new PGlite({ extensions: { pgcrypto } });
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c';
-const def = (n = 'X') => ({ schemaVersion: 1, businessName: n, industryTemplate: 'clinic', modules: [], objects: [], pipeline: { stages: ['a', 'b'] } });
+const def = (n = 'X') => ({ schemaVersion: 1, businessName: n, modules: [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }], objects: [], pipeline: { stages: ['a', 'b'] } });
 
 // Run one statement as a role/user, like PostgREST does (role switch + JWT claim), then reset.
 async function as(user, sql, params = []) {
@@ -18,7 +18,7 @@ async function as(user, sql, params = []) {
   try { return await db.query(sql, params); } finally { await db.exec('reset role'); }
 }
 const rejects = (p, code) => assert.rejects(p, e => (code ? e.code === code : true));
-const create = (user, name = 'Org', ind = 'clinic', d = def(name)) => as(user, 'select public.create_organization($1,$2,$3::jsonb) id', [name, ind, JSON.stringify(d)]).then(r => r.rows[0].id);
+const create = (user, name = 'Org', desc = null, d = def(name)) => as(user, 'select public.create_workspace($1,$2,null,$3::jsonb) id', [name, desc, JSON.stringify(d)]).then(r => r.rows[0].id);
 
 before(async () => {
   await db.exec(`
@@ -36,16 +36,16 @@ before(async () => {
 
 test('all migrations apply in order', async () => {
   const r = await db.query(`select count(*)::int n from pg_tables where schemaname='public'`);
-  assert.equal(r.rows[0].n, 9); // 4 foundation tables + contacts, leads, lead_activities, tasks, domain_events (0004)
+  assert.equal(r.rows[0].n, 10); // 4 foundation + contacts, leads, lead_activities, tasks, domain_events (0004) + records (0006)
 });
 
-test('anon has no table privileges and cannot call create_organization', async () => {
+test('anon has no table privileges and cannot call create_workspace', async () => {
   await rejects(as(null, 'select * from public.organizations'), '42501');
-  await rejects(as(null, `select public.create_organization('Nope','clinic','{"schemaVersion":1}')`), '42501');
+  await rejects(as(null, `select public.create_workspace('Nope',null,null,'{"schemaVersion":1}')`), '42501');
   await rejects(as(null, 'select public.is_org_member(gen_random_uuid())'), '42501');
 });
 
-test('create_organization: owner comes from auth.uid(), config stored, audit written', async () => {
+test('create_workspace: owner comes from auth.uid(), config stored, audit written', async () => {
   const org = await create(A, '  Alpha  ');
   const m = await as(A, 'select role from public.organization_members where organization_id=$1 and user_id=$2', [org, A]);
   assert.equal(m.rows[0].role, 'owner');
@@ -54,21 +54,25 @@ test('create_organization: owner comes from auth.uid(), config stored, audit wri
   assert.equal((await as(A, 'select 1 from public.audit_events where organization_id=$1', [org])).rows.length, 1);
 });
 
-test('create_organization rejects bad input and unauthenticated callers', async () => {
-  await rejects(as(A, `select public.create_organization('x','clinic','{"schemaVersion":1}')`), '22023');
-  await rejects(as(A, `select public.create_organization('Valid','banking','{"schemaVersion":1}')`), '22023');
-  await rejects(as(A, `select public.create_organization('Valid','clinic','{"schemaVersion":2}')`), '22023');
-  await rejects(as(A, `select public.create_organization('Valid','clinic','[]')`), '22023');
-  await rejects(as(A, `select public.create_organization('Valid','clinic',$1::jsonb)`, [JSON.stringify({ schemaVersion: 1, pad: 'x'.repeat(200001) })]), '22023');
+test('create_workspace rejects bad input and unauthenticated callers', async () => {
+  const call = (n, d, preset, definition) => as(A, 'select public.create_workspace($1,$2,$3,$4::jsonb)', [n, d, preset, JSON.stringify(definition)]);
+  await rejects(call('x', null, null, def('x')), '22023');
+  await rejects(call('Valid', null, null, { ...def(), schemaVersion: 2 }), '22023');
+  await rejects(call('Valid', null, null, []), '22023');
+  await rejects(call('Valid', null, null, { ...def(), pad: 'x'.repeat(200001) }), '22023');
+  await rejects(call('Valid', null, 'Bad Preset!', def()), '22023');
+  await rejects(call('Valid', 'x'.repeat(1001), null, def()), '22023');
+  await rejects(call('Valid', null, null, { ...def(), modules: [] }), '22023'); // core modules required
   await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','',false)`);
-  await rejects(db.query(`select public.create_organization('Valid','clinic','{"schemaVersion":1}')`), '28000');
+  await rejects(db.query(`select public.create_workspace('Valid',null,null,$1::jsonb)`, [JSON.stringify(def())]), '28000');
   await db.exec('reset role');
 });
 
-test('definition cannot lie about its own name or industry', async () => {
-  const org = await create(B, 'Real Name', 'salon', { ...def('Spoof'), industryTemplate: 'clinic' });
+test('definition cannot lie about its own name, preset or description (and the legacy industry field is dropped)', async () => {
+  const org = await create(B, 'Real Name', null, { ...def('Spoof'), industryTemplate: 'clinic', preset: 'lie', description: 'lie' });
   const r = await as(B, 'select definition from public.workspace_configuration_versions where organization_id=$1', [org]);
-  assert.equal(r.rows[0].definition.businessName, 'Real Name'); assert.equal(r.rows[0].definition.industryTemplate, 'salon');
+  assert.equal(r.rows[0].definition.businessName, 'Real Name');
+  assert.equal(r.rows[0].definition.industryTemplate, undefined); assert.equal(r.rows[0].definition.preset, undefined); assert.equal(r.rows[0].definition.description, undefined);
 });
 
 test('organization limit per owner is enforced', async () => {

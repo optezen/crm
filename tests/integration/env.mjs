@@ -29,8 +29,11 @@ export async function newUser(label = 'u') {
   return { id: data.user.id, email, password, client };
 }
 
-export async function createOrg(user, name, industry = 'clinic') {
-  const { data, error } = await user.client.rpc('create_organization', { p_name: name, p_industry: industry, p_definition: { schemaVersion: 1, businessName: name, industryTemplate: industry, modules: [{ key: 'overview', label: 'Overview', status: 'active' }], objects: [], pipeline: { stages: ['a', 'b'] } } });
+export const CORE_MODULES = [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }];
+export const definition = (name, extra = {}) => ({ schemaVersion: 1, businessName: name, modules: CORE_MODULES, objects: [], pipeline: { stages: ['a', 'b'] }, ...extra });
+
+export async function createOrg(user, name, description = null, extra = {}) {
+  const { data, error } = await user.client.rpc('create_workspace', { p_name: name, p_description: description, p_preset: null, p_definition: definition(name, extra) });
   if (error) throw error;
   trackOrg(data);
   return data;

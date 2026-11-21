@@ -13,7 +13,7 @@ export const PROVIDER_INFO: Record<ProviderId, { label: string; blurb: string; i
   whatsapp: { label: 'WhatsApp', blurb: 'Send approved WhatsApp templates from automations through Meta Cloud API or Interakt, and track delivery.', implemented: true },
   google_ads: { label: 'Google Ads', blurb: 'Import Google Ads lead form extensions and conversions. Not available yet.', implemented: false },
   telephony: { label: 'Telephony', blurb: 'Log calls and missed calls against leads. Not available yet.', implemented: false },
-  payments: { label: 'Payments', blurb: 'Record payments from a gateway against leads and invoices. Not available yet.', implemented: false },
+  payments: { label: 'Payments', blurb: 'Record verified Razorpay payments against invoices. Needs billing turned on.', implemented: true },
 };
 
 export const CRM_TARGETS = ['full_name', 'first_name', 'last_name', 'phone', 'email', 'summary', 'ignore'] as const;

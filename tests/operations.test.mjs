@@ -398,7 +398,7 @@ test('billing: provider payments reuse the same posting path (inert until a paym
   const prov = (conn, inv, amount, cur = 'INR', ref = 'pay_123') => worker('select public.billing_apply_provider_payment($1,$2,$3,$4,$5,$6) r', [conn, inv, amount, cur, ref, 'card']).then(r => r.rows[0].r);
   await assert.rejects(prov(id('77'), d, 50), e => /no connected payments provider/.test(e.message)); await bad(call(MGR, 'billing_apply_provider_payment', { p_connection: id('77'), p_invoice: d, p_amount: 1, p_currency: 'INR', p_provider_ref: 'x', p_method: 'card' }), '42501');
   assert.equal((await q('select count(*)::int n from public.invoice_payments where invoice_id=$1', [d]))[0].n, 0, 'nothing posted: no provider is connected');
-  const mk = async org => (await q(`insert into public.integration_connections (organization_id, provider, name, status, created_by) values ($1,'payments','Gateway','connected',$2) returning id`, [org, EMP]))[0].id;
+  const mk = async org => (await q(`insert into public.integration_connections (organization_id, provider, name, status, created_by, last_event_at) values ($1,'payments','Gateway','connected',$2, now()) returning id`, [org, EMP]))[0].id;
   const conn = await mk(o.org), connB = await mk(B.org);
   await assert.rejects(prov(connB, d, 50), e => e.code === 'P0002', "another organization's provider cannot pay this invoice"); await assert.rejects(prov(conn, d, 50, 'USD'), e => /currency/.test(e.message));
   const pid = await prov(conn, d, 50); assert.equal(await prov(conn, d, 50), pid, 'provider references are idempotent');

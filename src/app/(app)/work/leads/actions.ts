@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCrmContext } from '../../../../lib/crm/context';
 import * as crm from '../../../../lib/crm/service';
+import { setConsent } from '../../../../lib/crm/consent';
 import type { Result } from '../../../../lib/crm/types';
 import type { FormState } from '../../../../components/ui/ActionForm';
 
@@ -28,3 +29,4 @@ export const assignAction = async (_: FormState, f: FormData) => run(f, 'Assignm
 export const addNoteAction = async (_: FormState, f: FormData) => run(f, 'Note added.', c => crm.addNote(c, str(f, 'leadId'), f.get('note')));
 export const createTaskAction = async (_: FormState, f: FormData) => run(f, 'Follow-up added.', c => crm.createTask(c, body(f)));
 export const completeTaskAction = async (_: FormState, f: FormData) => run(f, 'Task completed.', c => crm.completeTask(c, str(f, 'taskId'), f.get('outcome')));
+export const setConsentAction = async (_: FormState, f: FormData) => run(f, 'Consent saved.', c => setConsent(c, str(f, 'contactId'), f.get('status'), f.get('note'), f.get('confirm') === 'on'));

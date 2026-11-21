@@ -71,7 +71,7 @@ const setup = async (connect = true) => {
   const { org, owner } = await fresh(BILL); await wq('select public.integration_set_gateway_secret($1)', [GW]);
   const inv = async (price = 1000, cur = 'INR') => { const d = await ok(call(MGR, 'invoice_save_draft', { p_org: org, p_id: null, p_contact: null, p_lead: null, p_currency: cur, p_due_date: null, p_notes: null, p_lines: [{ description: 'x', quantity: '1', unit_price: String(price), tax_keys: [] }] })); await ok(call(MGR, 'invoice_issue', { p_org: org, p_id: d })); return d; };
   const conn = await ok(call(owner, 'payments_connection_create', { p_org: org, p_name: 'Razorpay', p_gateway: 'razorpay' }));
-  await ok(call(owner, 'integration_store_credentials', { p_org: org, p_conn: conn.id, p_ciphertext: encryptJson({ webhook_secret: SECRET }, KEY), p_expires_at: null })); if (connect) await ok(call(owner, 'integration_set_status', { p_org: org, p_conn: conn.id, p_status: 'connected', p_error: null }));
+  await ok(call(owner, 'integration_store_credentials', { p_org: org, p_conn: conn.id, p_ciphertext: encryptJson({ webhook_secret: SECRET }, KEY), p_expires_at: null })); if (connect) { await bad(call(owner, 'integration_set_status', { p_org: org, p_conn: conn.id, p_status: 'connected', p_error: null }), '22023', /signed notification/); await q('update public.integration_connections set last_event_at = now() where id=$1', [conn.id]); await ok(call(owner, 'integration_set_status', { p_org: org, p_conn: conn.id, p_status: 'connected', p_error: null })); } // activation needs a received, verified notification
   return { org, owner, conn, inv };
 };
 const sign = (raw, secret = SECRET) => createHmac('sha256', secret).update(raw).digest('hex');

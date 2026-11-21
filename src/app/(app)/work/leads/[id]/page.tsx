@@ -8,7 +8,9 @@ import { LocalTime } from '../../../../../components/ui/LocalTime';
 import { Card } from '../../../../../components/ui/Card';
 import { Field } from '../../../../../components/ui/Field';
 import { LeadFields } from '../LeadFields';
-import { addNoteAction, assignAction, completeTaskAction, createTaskAction, setStageAction, updateLeadAction } from '../actions';
+import { ConsentCard } from '../../../../../components/crm/ConsentCard';
+import { getConsent } from '../../../../../lib/crm/consent';
+import { addNoteAction, assignAction, completeTaskAction, createTaskAction, setConsentAction, setStageAction, updateLeadAction } from '../actions';
 
 const fmtDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -34,6 +36,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
       default: return a.body ?? '';
     }
   };
+  const consent = lead.contactHidden ? null : await getConsent(ctx, lead.contactId); // people who cannot see the contact cannot manage consent either
   const canClaim = !manager && lead.assignedTo === null;
   return <div className="stack">
     <div className="top"><div><Link className="muted" href="/work/leads">← All leads</Link><h1>{lead.fullName}</h1>
@@ -60,6 +63,8 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
         </div>
       </Card>
     </div>
+
+    {consent?.ok && <ConsentCard view={consent.value} contactId={lead.contactId} hasPhone={!!lead.phone} action={setConsentAction} />}
 
     <Card title="Edit details">
       <details><summary>Edit contact and lead details</summary>

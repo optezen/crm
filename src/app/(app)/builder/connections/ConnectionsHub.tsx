@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { Card } from '../../../../components/ui/Card';
 import { LocalTime } from '../../../../components/ui/LocalTime';
 import { CopyButton } from '../../../../components/ui/CopyButton';
+import { PaymentsConnection } from '../../../../components/studio/PaymentsConnection';
+import { activatePaymentsAction, createPaymentsConnectionAction, savePaymentsSecretAction } from './payments-actions';
 import { CRM_TARGETS, PROVIDER_INFO, STATUS_LABEL, TARGET_LABEL, type ConnectionRow, type CrmTarget } from '../../../../lib/integrations/types';
 import { META_PERMISSIONS } from '../../../../lib/integrations/env';
 import type { HubData } from '../../../../lib/integrations/service';
@@ -20,7 +22,7 @@ function useRun() {
 const Health = ({ c, counts }: { c: ConnectionRow; counts?: { received: number; created: number; rejected: number } }) => <div className="muted" style={{ fontSize: 13 }}>
   Last event: {c.lastEventAt ? <LocalTime iso={c.lastEventAt} /> : 'none yet'} · Last sync: {c.lastSyncAt ? <LocalTime iso={c.lastSyncAt} /> : 'n/a'}{counts && ` · Last 24h: ${counts.received} received, ${counts.created} leads, ${counts.rejected} rejected`}
   {c.lastError && <div className="err">Last problem: {c.lastError}</div>}</div>;
-const Contract = ({ id, extra }: { id: 'google_ads' | 'telephony' | 'payments'; extra: string }) => <Card title={PROVIDER_INFO[id].label} description={PROVIDER_INFO[id].blurb}>
+const Contract = ({ id, extra }: { id: 'google_ads' | 'telephony'; extra: string }) => <Card title={PROVIDER_INFO[id].label} description={PROVIDER_INFO[id].blurb}>
   <div className="stack"><span className="badge done">Not connected</span><p className="muted">{extra} There is nothing to connect yet: no setup is offered here until a real adapter exists. The adapter contract is documented in docs/INTEGRATIONS.md.</p></div></Card>;
 
 function Snippets({ url, secret, urlKeyAllowed }: { url: string; secret?: string; urlKeyAllowed: boolean }) {
@@ -141,14 +143,15 @@ function WhatsAppCard({ data, missing }: { data: HubData; missing: string[] }) {
     </div></Card>;
 }
 
-export function ConnectionsHub({ data, siteUrl, metaMissing, whatsappMissing }: { data: HubData; siteUrl: string; metaMissing: string[]; whatsappMissing: string[] }) {
+export function ConnectionsHub({ data, siteUrl, metaMissing, whatsappMissing, paymentsMissing, paymentsSecretSaved }: { data: HubData; siteUrl: string; metaMissing: string[]; whatsappMissing: string[]; paymentsMissing: string[]; paymentsSecretSaved: boolean }) {
   return <div className="stack">
     <WebsiteForms data={data} siteUrl={siteUrl} />
     <MetaCard data={data} missing={metaMissing} />
     <WhatsAppCard data={data} missing={whatsappMissing} />
     <Contract id="google_ads" extra="Planned adapter: Google Ads lead form extensions via offline OAuth." />
     <Contract id="telephony" extra="Planned adapter: call events (answered, missed, recording link) from a telephony provider." />
-    <Contract id="payments" extra="Planned adapter: payment captured / failed events from a payment gateway." />
+    <PaymentsConnection connection={data.connections.find(c => c.provider === 'payments') ?? null} siteUrl={siteUrl} secretSaved={paymentsSecretSaved} missing={paymentsMissing}
+      actions={{ create: createPaymentsConnectionAction, saveSecret: savePaymentsSecretAction, activate: activatePaymentsAction, disconnect: disconnectAction }} />
     {data.errors.length > 0 && <Card title="Recent errors" description="Across all connections."><ul>{data.errors.map(e => <li key={e.id}><LocalTime iso={e.createdAt} /> · {e.source} · {e.code}: {e.message}</li>)}</ul></Card>}
   </div>;
 }

@@ -7,6 +7,8 @@ import { Card } from '../../../../../components/ui/Card';
 import { Notice } from '../../../../../components/ui/Notice';
 import { HoursEditor } from '../../../../../components/HoursEditor';
 import { OpButton, OpForm } from '../../../../../components/OpForm';
+import { ReminderSettings, type ReminderSettingsRow } from '../../../../../components/ReminderSettings';
+import { saveReminderSettingsAction } from './actions';
 
 export default async function AppointmentSetup() {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
@@ -15,9 +17,11 @@ export default async function AppointmentSetup() {
 }
 async function Body(s: Extract<Awaited<ReturnType<typeof getWorkspaceState>>, { status: 'ready' }>) {
   const db = await supabaseServer(); const [types, team, hours, off] = await Promise.all([appointmentTypes(db, s.organizationId), members(db, s.organizationId), staffHours(db, s.organizationId), timeOff(db, s.organizationId)]);
+  const [rem, wa] = await Promise.all([db.from('reminder_settings').select('enabled, offsets, notify_staff, notify_customer, whatsapp_template, whatsapp_language, quiet_from, quiet_to').eq('organization_id', s.organizationId).maybeSingle(), db.from('integration_connections').select('id').eq('organization_id', s.organizationId).eq('provider', 'whatsapp').eq('status', 'connected').limit(1)]);
   const tz = s.config.operations?.appointments?.timezone ?? 'UTC'; const fmt = (iso: string) => new Date(iso).toLocaleString('en-GB', { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' });
   return <div className="stack">
     <div className="top"><div><span className="eyebrow">Optizen Work mode</span><h1>Appointment types &amp; working hours</h1><p className="muted">Whether this module is on, and its time zone, are set in Builder under “Business operations”.</p></div></div>
+    <ReminderSettings settings={(rem.data as ReminderSettingsRow | null) ?? null} timezone={tz} whatsappConnected={(wa.data?.length ?? 0) > 0} canEdit={s.role === 'owner' || s.role === 'admin'} action={saveReminderSettingsAction} />
     <Card title="Appointment types" description="Each type has a fixed duration. Deactivating a type keeps existing appointments.">
       {types.map(t => <div className="task" key={t.id}><div className="row"><strong>{t.name}</strong><span className="muted">{t.duration_minutes} min</span>{!t.active && <span className="badge done">Inactive</span>}
         <OpButton fn="appointment_type_save" args={{ p_id: t.id, p_name: t.name, p_duration: t.duration_minutes, p_active: !t.active }} label={t.active ? 'Deactivate' : 'Activate'} /></div></div>)}

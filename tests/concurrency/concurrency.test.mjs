@@ -97,7 +97,7 @@ test('[real db] gateway payments: the same provider notification delivered 10 ti
   const { org, owner } = await fresh(); const GW = 'g'.repeat(40);
   ok(await rpc(null, 'integration_set_gateway_secret', { p_secret: GW }, 'service_role'));
   const d = ok(await rpc(owner, 'invoice_save_draft', { p_org: org, p_id: null, p_contact: null, p_lead: null, p_currency: 'INR', p_due_date: null, p_notes: null, p_lines: [{ description: 'x', quantity: '1', unit_price: '1000', tax_keys: [] }] })); ok(await rpc(owner, 'invoice_issue', { p_org: org, p_id: d }));
-  const conn = ok(await rpc(owner, 'payments_connection_create', { p_org: org, p_name: 'Razorpay', p_gateway: 'razorpay' })); ok(await rpc(owner, 'integration_set_status', { p_org: org, p_conn: conn.id, p_status: 'connected', p_error: null }));
+  const conn = ok(await rpc(owner, 'payments_connection_create', { p_org: org, p_name: 'Razorpay', p_gateway: 'razorpay' })); await q('update public.integration_connections set last_event_at = now() where id=$1', [conn.id]); ok(await rpc(owner, 'integration_set_status', { p_org: org, p_conn: conn.id, p_status: 'connected', p_error: null }));
   const ev = (id, pid, amt) => ({ event_id: id, kind: 'payment_captured', provider_payment_id: pid, invoice_id: d, amount: amt, currency: 'INR', method: 'upi' });
   const recv = events => rpc(null, 'payment_gateway_receive', { p_conn: conn.id, p_gateway_secret: GW, p_events: events });
   const dup = await par(10, () => recv([ev('evt_1', 'pay_1', 400)])); genuine(dup); assert.equal((await q(`select count(*)::int n from public.payment_gateway_events where connection_id=$1`, [conn.id]))[0].n, 1, 'stored once');

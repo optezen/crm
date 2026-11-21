@@ -1,6 +1,7 @@
 // Which platform-level settings are configured. Tenants never provide these; the operator sets them once per deployment.
 export type PlatformEnv = Record<string, string | undefined>;
-export const META_PERMISSIONS = ['pages_show_list', 'pages_manage_metadata', 'pages_read_engagement', 'leads_retrieval', 'pages_manage_ads'] as const;
+/** From Meta's lead-retrieval and leadgen-webhook guides: Page listing/engagement, webhook subscription (pages_manage_metadata), reading leads (leads_retrieval) and the ad permissions the guide lists. Each needs App Review (and Business Verification for Advanced Access) before non-test users can grant it. */
+export const META_PERMISSIONS = ['pages_show_list', 'pages_manage_metadata', 'pages_read_engagement', 'leads_retrieval', 'ads_management', 'pages_manage_ads'] as const;
 
 export function missingFor(feature: 'meta' | 'whatsapp' | 'forms' | 'encryption', env: PlatformEnv = process.env): string[] {
   const need: Record<string, string[]> = {

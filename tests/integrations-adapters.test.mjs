@@ -140,7 +140,7 @@ test('worker loops (fake database, mocked HTTP): Meta lead fetch, failures set c
   const graph = mockFetch([{ match: u => u.includes('/L1?'), reply: reply(200, { id: 'L1', field_data: [{ name: 'full_name', values: ['A'] }] }) }, { match: u => u.includes('/L2?'), reply: reply(400, { error: { code: 190, message: 'Session expired' } }) },
     { match: u => u.includes('/L3?'), reply: reply(500, {}) }, { match: (u, i) => u.endsWith('/55/messages'), reply: reply(200, { messages: [{ id: 'wamid.9' }] }) }]);
   const ev = (id, lead) => ({ id, connection_id: 'C1', payload: { page_id: 'P1', leadgen_id: lead } });
-  const db = fakeDb({ integration_claim_events: () => [ev('e1', 'L1'), ev('e2', 'L2'), ev('e3', 'L3')], integration_ingest_lead: () => ({ status: 'created' }), integration_apply_status_events: () => 2, integration_claim_requests: () => [] });
+  const db = fakeDb({ integration_claim_events: () => [ev('e1', 'L1'), ev('e2', 'L2'), ev('e3', 'L3')], integration_ingest_lead: () => ({ status: 'created' }), integration_apply_status_events: () => 2, integration_claim_requests: () => [], payment_gateway_apply: () => ({ applied: 0, held: 0, ignored: 0 }) });
   const deps = { rpc: db.rpc, credentials: async () => creds, fetch: graph, key };
   assert.deepEqual(await processLeadEvents(deps), { claimed: 3, created: 1, failed: 2 });
   const calls = fn => db.log.filter(([f]) => f === fn).map(([, a]) => a);

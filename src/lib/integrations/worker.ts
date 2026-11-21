@@ -17,7 +17,7 @@ async function creds<T>(d: WorkerDeps, connectionId: string): Promise<T> {
 }
 /** Auth failures change the connection state so the owner sees "Expired" / "Error" instead of silent non-delivery. */
 async function reportAuth(d: WorkerDeps, connectionId: string, e: ProviderError, expiredOk: boolean) {
-  await d.rpc('integration_set_connection_state', { p_conn: connectionId, p_status: expiredOk && e.code === '190' ? 'expired' : 'error', p_error: e.message });
+  await d.rpc('integration_set_connection_state', { p_conn: connectionId, p_status: expiredOk && e.code === '190' ? 'expired' : 'error', p_error: e.message }); // 'expired' = reconnect with a new token; 'error' = a permission or the Page installation is gone
 }
 
 export async function processLeadEvents(d: WorkerDeps, limit = 10): Promise<{ claimed: number; created: number; failed: number }> {
@@ -32,7 +32,7 @@ export async function processLeadEvents(d: WorkerDeps, limit = 10): Promise<{ cl
     } catch (e) {
       failed++;
       const pe = e instanceof ProviderError ? e : new ProviderError((e as Error).message, 'transient');
-      if (pe.kind === 'auth') await reportAuth(d, ev.connection_id, pe, true);
+      if (pe.kind === 'auth' || (pe.kind === 'permanent' && ['10'].includes(pe.code ?? '') || (pe.kind === 'permanent' && /^2\d\d$/.test(pe.code ?? '')))) await reportAuth(d, ev.connection_id, pe, true);
       await d.rpc('integration_fail_event', { p_event: ev.id, p_message: pe.message, p_retryable: pe.retryable });
       await d.rpc('integration_job', { p_conn: ev.connection_id, p_kind: 'meta_lead_fetch', p_status: 'failed', p_items: 0, p_error: pe.message });
     }
@@ -51,7 +51,7 @@ export async function deliverWhatsApp(d: WorkerDeps, limit = 10): Promise<{ clai
       if (!r.payload.phone) throw new ProviderError('The lead has no phone number.', 'permanent', 'no_phone');
       const adapter = messagingAdapter(cfg.provider ?? '', d.fetch);
       const c = await creds<Record<string, string>>(d, r.connection_id);
-      const out = await adapter.send({ to: toWhatsAppNumber(r.payload.phone, cfg.default_country_code), templateName: template, language, bodyParams: r.payload.params ?? (r.payload.message ? [r.payload.message] : []) },
+      const out = await adapter.send({ to: toWhatsAppNumber(r.payload.phone, cfg.default_country_code), templateName: template, language, bodyParams: r.payload.params ?? (r.payload.message ? [r.payload.message] : []), reference: r.id },
         adapter.id === 'meta_cloud' ? { access_token: c.access_token, phone_number_id: cfg.phone_number_id ?? c.phone_number_id } : c);
       await must(d.rpc('integration_complete_request', { p_request: r.id, p_ok: true, p_message_id: out.messageId, p_error: null, p_retryable: false }));
       sent++;
@@ -68,5 +68,6 @@ export async function deliverWhatsApp(d: WorkerDeps, limit = 10): Promise<{ clai
 export async function integrationTick(d: WorkerDeps) {
   const statuses = (await must(d.rpc('integration_apply_status_events', { p_limit: 100 }))) as number;
   const leads = await processLeadEvents(d), messages = await deliverWhatsApp(d);
-  return { statuses, leads, messages, busy: statuses + leads.claimed + messages.claimed > 0 };
+  const payments = (await must(d.rpc('payment_gateway_apply', { p_limit: 50 }))) as { applied: number; held: number; ignored: number }; // verified gateway events -> payments (or held with a reason)
+  return { statuses, leads, messages, payments, busy: statuses + leads.claimed + messages.claimed + payments.applied + payments.held + payments.ignored > 0 };
 }

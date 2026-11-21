@@ -5,7 +5,7 @@ import { META_PERMISSIONS } from './env.ts';
 
 export type MetaCreds = { user_token: string; pages: Record<string, string>; expires_at?: string | null };
 export type MetaPage = { id: string; name: string; access_token: string };
-export const GRAPH_VERSION = (typeof process !== 'undefined' && process.env?.META_GRAPH_VERSION) || 'v21.0';
+export const GRAPH_VERSION = (typeof process !== 'undefined' && process.env?.META_GRAPH_VERSION) || 'v26.0'; // v21.0 is supported until 2027-01-21 per Meta's version table; override with META_GRAPH_VERSION and re-run the contract tests when upgrading
 const base = (v = GRAPH_VERSION) => `https://graph.facebook.com/${v}`;
 
 export function authUrl(p: { appId: string; redirectUri: string; state: string; version?: string }): string {
@@ -14,13 +14,18 @@ export function authUrl(p: { appId: string; redirectUri: string; state: string; 
   return u.toString();
 }
 
-/** Classifies a Graph error. 190 = invalid/expired token, 4/17/32/613 = rate limits, 10/200-299 = permission, 1/2 = transient. */
+/** Classifies a Graph error (https://developers.facebook.com/docs/graph-api/guides/error-handling).
+ * 190 = token invalid; subcodes 463 expired / 467 invalid / 460 password changed / 492 the user no longer has a role on the Page; 458 = the app is no longer installed on the Page;
+ * 4/17/32/341/613 = throttling; 10 and 200-299 = a permission was not granted or was removed; 1/2 and 5xx = transient. */
 export function classify(status: number, body: unknown): ProviderError {
   const e = (body as { error?: { message?: string; code?: number; error_subcode?: number } } | null)?.error;
-  const code = e?.code, msg = e?.message ?? `Meta returned HTTP ${status}`;
-  if (code === 190 || status === 401) return new ProviderError(`Meta rejected the access token: ${msg}`, 'auth', String(code ?? status));
-  if (code !== undefined && [4, 17, 32, 613].includes(code) || status === 429) return new ProviderError(`Meta rate limit: ${msg}`, 'rate_limit', String(code ?? status));
-  if (code === 10 || (code !== undefined && code >= 200 && code <= 299) || status === 403) return new ProviderError(`Meta permission problem: ${msg}`, 'permanent', String(code ?? status));
+  const code = e?.code, sub = e?.error_subcode, msg = e?.message ?? `Meta returned HTTP ${status}`;
+  if (sub === 458) return new ProviderError('The app is no longer installed on this Page. Reconnect Meta and select the Page again.', 'auth', '458');
+  if (sub === 492) return new ProviderError('The person who connected Meta no longer has the required role on this Page. Reconnect with an account that can advertise on the Page.', 'auth', '492');
+  if (sub === 460) return new ProviderError('The connected Facebook password was changed. Reconnect Meta.', 'auth', '190');
+  if (code === 190 || status === 401) return new ProviderError(`Meta rejected the access token (${sub === 463 ? 'expired' : sub === 467 ? 'invalid' : 'expired, revoked or invalid'}). Reconnect Meta.`, 'auth', String(code ?? status));
+  if (code !== undefined && [4, 17, 32, 341, 613].includes(code) || status === 429) return new ProviderError(`Meta rate limit: ${msg}`, 'rate_limit', String(code ?? status));
+  if (code === 10 || (code !== undefined && code >= 200 && code <= 299) || status === 403) return new ProviderError(`A Meta permission is missing or was removed (${msg}). Reconnect Meta and approve every requested permission.`, 'permanent', String(code ?? status));
   if (status >= 500 || code === 1 || code === 2) return new ProviderError(`Meta is temporarily unavailable: ${msg}`, 'transient', String(code ?? status));
   return new ProviderError(msg, 'permanent', String(code ?? status));
 }

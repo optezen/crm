@@ -39,5 +39,5 @@ export type IncomingLead = { externalId: string; fields: Record<string, string>;
 /** Contract every incoming-lead provider implements (Meta Lead Ads today; Google Ads lead forms later). */
 export interface LeadSourceAdapter { readonly provider: ProviderId; fetchLead(ref: Record<string, string>, creds: unknown): Promise<IncomingLead> }
 /** Contract for outbound messaging (WhatsApp today; SMS later). */
-export type OutboundMessage = { to: string; templateName: string; language: string; bodyParams: string[] };
+export type OutboundMessage = { to: string; templateName: string; language: string; bodyParams: string[]; /** echoed back by the provider in status webhooks (WhatsApp: biz_opaque_callback_data) so an ambiguous send can be reconciled */ reference?: string };
 export interface MessagingAdapter { readonly id: string; send(msg: OutboundMessage, creds: unknown): Promise<{ messageId: string }>; verify(creds: unknown): Promise<{ displayName: string }> }

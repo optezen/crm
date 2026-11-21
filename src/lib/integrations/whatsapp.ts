@@ -35,7 +35,7 @@ export class MetaCloudAdapter implements MessagingAdapter {
   async send(msg: OutboundMessage, creds: unknown): Promise<{ messageId: string }> {
     const c = creds as MetaCloudCreds;
     const b = await this.call(`/${encodeURIComponent(c.phone_number_id)}/messages`, c, { method: 'POST', body: {
-      messaging_product: 'whatsapp', to: msg.to, type: 'template',
+      messaging_product: 'whatsapp', to: msg.to, type: 'template', ...(msg.reference ? { biz_opaque_callback_data: msg.reference } : {}),
       template: { name: msg.templateName, language: { code: msg.language }, components: msg.bodyParams.length ? [{ type: 'body', parameters: msg.bodyParams.map(text => ({ type: 'text', text })) }] : [] } } });
     const id = (b.messages as { id?: string }[] | undefined)?.[0]?.id;
     if (!id) throw new ProviderError('WhatsApp accepted the request but returned no message id.', 'permanent');
@@ -72,14 +72,14 @@ export const messagingAdapter = (provider: string, fetch: Fetch): MessagingAdapt
 /** WhatsApp Cloud API webhook -> delivery status events, routed by phone_number_id. Inbound customer messages are intentionally ignored. */
 export function parseWhatsAppWebhook(body: unknown): GatewayEvent[] {
   const out: GatewayEvent[] = [];
-  const b = body as { object?: string; entry?: { changes?: { field?: string; value?: { metadata?: { phone_number_id?: string }; statuses?: { id?: string; status?: string; errors?: { code?: number; title?: string; message?: string }[] }[] } }[] }[] };
+  const b = body as { object?: string; entry?: { changes?: { field?: string; value?: { metadata?: { phone_number_id?: string }; statuses?: { id?: string; status?: string; biz_opaque_callback_data?: string; errors?: { code?: number; title?: string; message?: string }[] }[] } }[] }[] };
   if (b?.object !== 'whatsapp_business_account') return out;
   for (const e of b.entry ?? []) for (const c of e.changes ?? []) {
     const phone = c.value?.metadata?.phone_number_id; if (c.field !== 'messages' || !phone) continue;
     for (const s of c.value?.statuses ?? []) {
       if (!s.id || !s.status) continue;
       const err = s.errors?.[0];
-      out.push({ kind: 'whatsapp_status', asset_kind: 'phone_number', asset_id: phone, dedupe_key: `${s.id}:${s.status}`, payload: { message_id: s.id, status: s.status, ...(err ? { error: `${err.code ?? ''} ${err.title ?? err.message ?? ''}`.trim() } : {}) } });
+      out.push({ kind: 'whatsapp_status', asset_kind: 'phone_number', asset_id: phone, dedupe_key: `${s.id}:${s.status}`, payload: { message_id: s.id, status: s.status, ...(s.biz_opaque_callback_data ? { callback: s.biz_opaque_callback_data.slice(0, 64) } : {}), ...(err ? { error: `${err.code ?? ''} ${err.title ?? err.message ?? ''}`.trim() } : {}) } });
     }
   }
   return out;

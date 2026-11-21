@@ -275,3 +275,151 @@ grant execute on function public.worker_heartbeat(text, text, text, jsonb, text)
 grant execute on function public.worker_heartbeat(text, text, text, jsonb, text), public.maintenance_tick(), public.reminders_process(integer), public.automation_tick(integer, integer), public.integration_apply_status_events(integer), public.integration_claim_events(integer), public.integration_ingest_lead(uuid, jsonb, jsonb),
   public.integration_fail_event(uuid, text, boolean), public.integration_set_connection_state(uuid, text, text), public.integration_job(uuid, text, text, integer, text), public.integration_claim_requests(integer), public.integration_complete_request(uuid, boolean, text, text, boolean), public.integration_purge(integer) to optizen_worker;
 grant select (connection_id, ciphertext) on public.integration_credentials to optizen_worker;
+
+-- ---------- delivery status processing: reconcile uncertain sends, honour provider opt-out signals ----------
+create or replace function public.integration_apply_status_events(p_limit integer default 100) returns integer language plpgsql security definer set search_path = '' as $$
+declare ev public.integration_webhook_events; v_n int := 0; v_status text; v_req uuid;
+begin
+  for ev in select * from public.integration_webhook_events where kind = 'whatsapp_status' and status in ('received','failed') and next_attempt_at <= now() order by received_at limit greatest(1, least(p_limit, 500)) for update skip locked loop
+    v_status := case ev.payload->>'status' when 'sent' then 'sent' when 'delivered' then 'delivered' when 'read' then 'read' when 'failed' then 'failed' end;
+    select id into v_req from public.integration_requests where organization_id = ev.organization_id and provider = 'whatsapp' and provider_message_id = ev.payload->>'message_id';
+    -- Reconcile an ambiguous send: the provider echoes our request id (biz_opaque_callback_data). If the message was accepted although we never recorded its id (crash, uncertain), attach it now.
+    if v_req is null and (ev.payload->>'callback') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+      update public.integration_requests set provider_message_id = ev.payload->>'message_id', status = 'sent', last_error = null, locked_until = null, updated_at = now()
+        where id = (ev.payload->>'callback')::uuid and organization_id = ev.organization_id and channel = 'whatsapp' and provider_message_id is null and status in ('failed','sending','requested') returning id into v_req;
+      if v_req is not null then perform public.outbound_log(ev.organization_id, v_req, ev.connection_id, 'sent', 'reconciled from a delivery status after an uncertain send', null); end if;
+    end if;
+    if v_status is null or v_req is null then
+      update public.integration_webhook_events set status = 'ignored', processed_at = now(), last_error = case when v_req is null then 'No matching message request.' else 'Unsupported status.' end where id = ev.id;
+    else
+      -- never move backwards (read -> delivered) and never overwrite a terminal failure with a late "sent"
+      update public.integration_requests set status = v_status, updated_at = now(), last_error = case when v_status = 'failed' then left(ev.payload->>'error', 500) else last_error end
+        where id = v_req and array_position(array['requested','sending','sent','delivered','read'], status) < array_position(array['requested','sending','sent','delivered','read'], v_status) or (id = v_req and v_status = 'failed' and status in ('sending','sent'));
+      update public.integration_webhook_events set status = 'processed', processed_at = now() where id = ev.id;
+      -- 131050: the customer stopped marketing messages from this business. Record the opt-out so nothing further is sent to them.
+      if v_status = 'failed' and (ev.payload->>'error') like '131050%' then
+        insert into public.messaging_consent (organization_id, contact_id, channel, status, source, note) select r.organization_id, coalesce(nullif(r.payload->>'contact_id', '')::uuid, (select l.contact_id from public.leads l where l.id = nullif(r.payload->>'lead_id', '')::uuid)), 'whatsapp', 'opted_out', 'customer_reply', 'WhatsApp reported the customer stopped messages from this business (131050).'
+          from public.integration_requests r where r.id = v_req and coalesce(nullif(r.payload->>'contact_id', '')::uuid, (select l.contact_id from public.leads l where l.id = nullif(r.payload->>'lead_id', '')::uuid)) is not null
+          on conflict (organization_id, contact_id, channel) do update set status = 'opted_out', source = 'customer_reply', note = excluded.note, updated_at = now();
+      end if;
+      if v_status = 'failed' then perform public.integration_log_error(ev.organization_id, ev.connection_id, 'whatsapp', 'delivery_failed', coalesce(ev.payload->>'error', 'Delivery failed'), jsonb_build_object('request_id', v_req)); end if;
+    end if;
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+-- an administrator can put a dead or failed incoming-lead event back in the queue (for example after reconnecting Meta)
+create or replace function public.integration_requeue_event(p_org uuid, p_event uuid) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.integration_admin(p_org);
+  update public.integration_webhook_events set status = 'received', attempts = 0, next_attempt_at = now(), locked_until = null, last_error = null where id = p_event and organization_id = p_org and kind = 'meta_leadgen' and status in ('dead','failed') and payload <> '{}'::jsonb;
+  if not found then raise exception 'Only a failed incoming lead that still has its data can be retried.' using errcode = '22023'; end if;
+  insert into public.audit_events (organization_id, actor_id, event_name, payload) values (p_org, (select auth.uid()), 'integration.event_requeued', jsonb_build_object('event_id', p_event));
+end $$;
+revoke all on function public.integration_requeue_event(uuid, uuid) from public, anon; grant execute on function public.integration_requeue_event(uuid, uuid) to authenticated;
+
+-- ---------- payment gateway foundation ----------
+-- Money is recorded ONLY from verified provider evidence: the web route verifies the gateway's signature (per-connection secret) and passes normalized events here; nothing the browser
+-- or a customer sends can create a payment. Events are stored once (duplicate callbacks are ignored), applied through the single payment posting function (so partial payments, the
+-- balance check and the ledger all apply), and anything that cannot be applied cleanly is HELD for a person with the reason, never guessed or force-applied.
+create table public.payment_gateway_events (
+  id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id) on delete cascade, connection_id uuid not null references public.integration_connections(id) on delete cascade,
+  event_id text not null check (char_length(event_id) between 1 and 200), kind text not null check (kind in ('payment_captured','payment_failed','refund_processed')),
+  provider_payment_id text not null check (char_length(provider_payment_id) between 1 and 120), invoice_id uuid, amount numeric(18,2) check (amount is null or amount > 0), currency text check (currency ~ '^[A-Z]{3}$'), method text check (method in ('cash','bank_transfer','card','upi','cheque','other')),
+  state text not null default 'received' check (state in ('received','applied','held','ignored')), reason text check (char_length(reason) <= 300), payment_id uuid, attempts integer not null default 0,
+  received_at timestamptz not null default now(), processed_at timestamptz, unique (connection_id, event_id)
+);
+create index payment_gateway_events_due_idx on public.payment_gateway_events (received_at) where state = 'received';
+alter table public.payment_gateway_events enable row level security; revoke all on public.payment_gateway_events from anon, authenticated; grant select on public.payment_gateway_events to authenticated;
+create policy payment_gateway_events_read on public.payment_gateway_events for select to authenticated using (public.org_role(organization_id) in ('owner','admin') and public.perm_ok(organization_id, 'billing', 'view'));
+
+create or replace function public.payments_connection_create(p_org uuid, p_name text, p_gateway text) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_id uuid; v_public text := left(public.integration_rand(), 16);
+begin
+  perform public.integration_admin(p_org);
+  if public.ops_require(p_org, 'billing') not in ('owner','admin') then raise exception 'Only owners and admins can connect a payment gateway.' using errcode = '42501'; end if;
+  if p_gateway not in ('razorpay') then raise exception 'That payment gateway is not supported yet.' using errcode = '22023'; end if;
+  if char_length(btrim(coalesce(p_name, ''))) not between 1 and 80 then raise exception 'Name the connection.' using errcode = '22023'; end if;
+  if exists (select 1 from public.integration_connections where organization_id = p_org and provider = 'payments' and status <> 'not_connected') then raise exception 'A payment gateway is already set up.' using errcode = '23505'; end if;
+  insert into public.integration_connections (organization_id, provider, name, status, public_id, config, created_by) values (p_org, 'payments', btrim(p_name), 'setup_required', v_public, jsonb_build_object('gateway', p_gateway), (select auth.uid())) returning id into v_id;
+  insert into public.audit_events (organization_id, actor_id, event_name, payload) values (p_org, (select auth.uid()), 'integration.created', jsonb_build_object('connection_id', v_id, 'provider', 'payments'));
+  return jsonb_build_object('id', v_id, 'public_id', v_public);
+end $$;
+
+-- the web route (anon key + gateway secret) asks for the encrypted webhook secret of ONE connection, then verifies the signature itself
+create or replace function public.payment_gateway_connection(p_public_id text, p_gateway_secret text) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare c public.integration_connections; k public.integration_credentials;
+begin
+  if not exists (select 1 from public.integration_gateway where secret_hash = public.integration_sha256(p_gateway_secret)) then perform public.integration_hit('gateway-fail', 1000000); return jsonb_build_object('status', 'unauthorized'); end if;
+  select * into c from public.integration_connections where public_id = p_public_id and provider = 'payments' and status in ('connected','setup_required');
+  if not found then return jsonb_build_object('status', 'unknown'); end if;
+  select * into k from public.integration_credentials where connection_id = c.id; if not found then return jsonb_build_object('status', 'no_secret'); end if;
+  return jsonb_build_object('status', 'ok', 'connection_id', c.id, 'gateway', c.config->>'gateway', 'ciphertext', k.ciphertext);
+end $$;
+create or replace function public.payment_gateway_receive(p_conn uuid, p_gateway_secret text, p_events jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare c public.integration_connections; e jsonb; v_new int := 0; v_dup int := 0; v_bad int := 0; v_id uuid;
+begin
+  if not exists (select 1 from public.integration_gateway where secret_hash = public.integration_sha256(p_gateway_secret)) then perform public.integration_hit('gateway-fail', 1000000); return jsonb_build_object('status', 'unauthorized'); end if;
+  select * into c from public.integration_connections where id = p_conn and provider = 'payments' and status in ('connected','setup_required'); if not found then return jsonb_build_object('status', 'unknown'); end if;
+  if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) > 50 then raise exception 'Invalid payment events.' using errcode = '22023'; end if;
+  for e in select * from jsonb_array_elements(p_events) loop
+    begin
+      insert into public.payment_gateway_events (organization_id, connection_id, event_id, kind, provider_payment_id, invoice_id, amount, currency, method) values (c.organization_id, c.id, e->>'event_id', e->>'kind', e->>'provider_payment_id',
+        case when (e->>'invoice_id') ~ '^[0-9a-f-]{36}$' then (e->>'invoice_id')::uuid end, nullif(e->>'amount', '')::numeric, nullif(e->>'currency', ''), nullif(e->>'method', ''))
+        on conflict (connection_id, event_id) do nothing returning id into v_id;
+      if v_id is null then v_dup := v_dup + 1; else v_new := v_new + 1; end if; v_id := null;
+    exception when others then v_bad := v_bad + 1; end;
+  end loop;
+  update public.integration_connections set last_event_at = now() where id = c.id;
+  return jsonb_build_object('status', 'ok', 'queued', v_new, 'duplicates', v_dup, 'invalid', v_bad);
+end $$;
+
+-- Worker: applies captured payments through billing_apply_provider_payment. A payment whose invoice is unknown, not issued, in another currency, or that exceeds the balance is HELD.
+create or replace function public.payment_gateway_apply(p_limit integer default 50) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare ev public.payment_gateway_events; v_pay uuid; v_applied int := 0; v_held int := 0; v_ignored int := 0; c public.integration_connections;
+begin
+  for ev in select * from public.payment_gateway_events where state = 'received' order by received_at limit greatest(1, least(p_limit, 200)) for update skip locked loop
+    select * into c from public.integration_connections where id = ev.connection_id;
+    if ev.kind <> 'payment_captured' then
+      update public.payment_gateway_events set state = case when ev.kind = 'payment_failed' then 'ignored' else 'held' end, processed_at = now(), reason = case when ev.kind = 'payment_failed' then 'The gateway reported a failed payment. Nothing was recorded.' else 'A refund was reported by the gateway. Review it and record the refund yourself if it is correct.' end where id = ev.id;
+      if ev.kind = 'payment_failed' then v_ignored := v_ignored + 1; else v_held := v_held + 1; end if; continue; end if;
+    begin
+      if c.status <> 'connected' then raise exception 'The payment gateway connection is not active.' using errcode = '22023'; end if;
+      if ev.invoice_id is null then raise exception 'The payment did not say which invoice it is for.' using errcode = 'P0002'; end if;
+      v_pay := public.billing_apply_provider_payment(ev.connection_id, ev.invoice_id, ev.amount, ev.currency, ev.provider_payment_id, coalesce(ev.method, 'other'));
+      update public.payment_gateway_events set state = 'applied', payment_id = v_pay, processed_at = now(), reason = null where id = ev.id; v_applied := v_applied + 1;
+    exception when others then
+      update public.payment_gateway_events set state = 'held', attempts = attempts + 1, processed_at = now(), reason = left(sqlerrm, 300) where id = ev.id; v_held := v_held + 1;
+      perform public.integration_log_error(ev.organization_id, ev.connection_id, 'payments', 'payment_held', left(sqlerrm, 300), jsonb_build_object('event_id', ev.id));
+    end;
+  end loop;
+  return jsonb_build_object('applied', v_applied, 'held', v_held, 'ignored', v_ignored);
+end $$;
+
+-- A held event can be retried after the cause is fixed (for example the invoice was issued), by an administrator.
+create or replace function public.payment_gateway_retry(p_org uuid, p_event uuid) returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.integration_admin(p_org);
+  update public.payment_gateway_events set state = 'received', processed_at = null, reason = null where id = p_event and organization_id = p_org and state = 'held' and kind = 'payment_captured';
+  if not found then raise exception 'Only a held payment can be retried.' using errcode = '22023'; end if;
+  insert into public.audit_events (organization_id, actor_id, event_name, payload) values (p_org, (select auth.uid()), 'payment.gateway_retry', jsonb_build_object('event_id', p_event));
+end $$;
+
+-- Reconciliation: what the gateway told us versus what is on the invoices. Manual payments (source 'manual') are never mixed into gateway totals.
+create or replace function public.payment_reconcile(p_org uuid) returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+  if public.ops_require(p_org, 'billing') not in ('owner','admin') then raise exception 'Only owners and admins can reconcile payments.' using errcode = '42501'; end if;
+  return jsonb_build_object(
+    'held', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'kind', e.kind, 'amount', e.amount, 'currency', e.currency, 'invoice_id', e.invoice_id, 'reason', e.reason, 'received_at', e.received_at) order by e.received_at) from public.payment_gateway_events e where e.organization_id = p_org and e.state = 'held'), '[]'::jsonb),
+    'applied_without_payment', (select count(*) from public.payment_gateway_events e where e.organization_id = p_org and e.state = 'applied' and not exists (select 1 from public.invoice_payments p where p.id = e.payment_id)),
+    'amount_mismatches', coalesce((select jsonb_agg(jsonb_build_object('event_id', e.id, 'event_amount', e.amount, 'payment_amount', p.amount)) from public.payment_gateway_events e join public.invoice_payments p on p.id = e.payment_id where e.organization_id = p_org and e.state = 'applied' and e.amount <> p.amount), '[]'::jsonb),
+    'gateway_payments_without_event', (select count(*) from public.invoice_payments p where p.organization_id = p_org and p.source = 'provider' and not exists (select 1 from public.payment_gateway_events e where e.payment_id = p.id)),
+    'gateway_total_by_currency', coalesce((select jsonb_object_agg(currency, total) from (select i.currency, sum(p.amount) total from public.invoice_payments p join public.invoices i on i.id = p.invoice_id where p.organization_id = p_org and p.source = 'provider' and p.kind = 'payment' group by i.currency) x), '{}'::jsonb),
+    'manual_total_by_currency', coalesce((select jsonb_object_agg(currency, total) from (select i.currency, sum(p.amount) total from public.invoice_payments p join public.invoices i on i.id = p.invoice_id where p.organization_id = p_org and p.source = 'manual' and p.kind = 'payment' group by i.currency) x), '{}'::jsonb));
+end $$;
+
+revoke all on function public.payments_connection_create(uuid, text, text), public.payment_gateway_connection(text, text), public.payment_gateway_receive(uuid, text, jsonb), public.payment_gateway_apply(integer), public.payment_gateway_retry(uuid, uuid), public.payment_reconcile(uuid) from public, anon, authenticated;
+grant execute on function public.payments_connection_create(uuid, text, text), public.payment_gateway_retry(uuid, uuid), public.payment_reconcile(uuid) to authenticated;
+grant execute on function public.payment_gateway_connection(text, text), public.payment_gateway_receive(uuid, text, jsonb) to anon, authenticated;
+grant execute on function public.payment_gateway_apply(integer) to service_role, optizen_worker;

@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { getWorkspaceState } from '../../../lib/workspace/service';
 import { supabaseServer } from '../../../lib/supabase/server';
 import { canBuild } from '../../../lib/workspace/resolve';
-import { discardDraft, publishDraft, restoreRevision, saveDraft } from '../../../lib/workspace/builder';
+import { CONFIG_CONFLICT, discardDraft, publishDraft, restoreRevision, saveDraft, saveVisualDraft } from '../../../lib/workspace/builder';
 import { aiConfigured, draftWorkspace } from '../../../lib/workspace/ai';
 import type { Result, WorkspaceConfig } from '../../../lib/workspace/types';
 
@@ -41,4 +41,14 @@ export async function aiDraftBuilderAction(description: string): Promise<Result<
   if (!aiConfigured()) return { ok: false, error: 'AI drafting is not configured on this deployment.' };
   if (typeof description !== 'string' || description.trim().length < 10 || description.length > 1000) return { ok: false, error: 'Describe your business in 10 to 1000 characters.' };
   return draftWorkspace({ name: c.s.config.businessName, description: description.trim() }, { apiKey: process.env.ANTHROPIC_API_KEY!, model: process.env.OPTIZEN_AI_MODEL });
+}
+
+/** Save from a visual editor (forms / pipeline). Same validation and draft as the Builder; refused when the draft or live version changed since the editor loaded. */
+export type VisualSave = { ok: true; message: string; token: string; published: number | null } | { ok: false; error: string; conflict?: boolean };
+export async function saveVisualConfigAction(definition: unknown, token: string, published: number | null): Promise<VisualSave> {
+  const c = await ctx(); if (!('s' in c)) return { ok: false, error: c.error };
+  const r = await saveVisualDraft(c.db, c.s.organizationId, definition, token, published);
+  if (!r.ok) return { ok: false, error: r.error, conflict: r.error.includes(CONFIG_CONFLICT) };
+  revalidatePath('/', 'layout');
+  return { ok: true, message: 'Draft saved. It is not live until you publish it.', token: r.value.token, published: r.value.published };
 }

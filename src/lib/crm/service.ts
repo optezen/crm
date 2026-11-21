@@ -15,8 +15,8 @@ function dbError(e: NonNullable<Err>): { ok: false; error: string } {
 }
 const NOT_FOUND = 'Not found.';
 
-type LeadDb = { id: string; stage: string; source: LeadRow['source']; summary: string | null; assigned_to: string | null; created_at: string; updated_at: string; contact_id: string; full_name: string; phone: string | null; email: string | null; open_tasks: number };
-const toLead = (r: LeadDb): LeadRow => ({ id: r.id, stage: r.stage, source: r.source, summary: r.summary, assignedTo: r.assigned_to, createdAt: r.created_at, updatedAt: r.updated_at, contactId: r.contact_id, fullName: r.full_name, phone: r.phone, email: r.email, openTasks: r.open_tasks });
+type LeadDb = { id: string; stage: string; source: LeadRow['source']; summary: string | null; assigned_to: string | null; created_at: string; updated_at: string; contact_id: string; full_name: string; phone: string | null; email: string | null; open_tasks: number; contact_hidden?: boolean };
+const toLead = (r: LeadDb): LeadRow => ({ id: r.id, stage: r.stage, source: r.source, summary: r.summary, assignedTo: r.assigned_to, createdAt: r.created_at, updatedAt: r.updated_at, contactId: r.contact_id, fullName: r.full_name, phone: r.phone, email: r.email, contactHidden: !!r.contact_hidden, openTasks: r.open_tasks });
 
 export const isManager = (role: Role) => MANAGER_ROLES.includes(role);
 

@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { getAiContext } from '../../../lib/ai/context';
 import { applyProposal, type ProposalStep } from '../../../lib/ai/proposals';
 
-export type ProposalView = { id: string; kind: 'module_config' | 'workflow' | 'dashboard'; title: string; payload: Record<string, unknown>; status: string };
+export type ProposalView = { id: string; kind: 'module_config' | 'workflow' | 'dashboard'; title: string; payload: Record<string, unknown>; status: string; workflow_id?: string | null };
 export type ConversationRow = { id: string; title: string | null; updatedAt: string };
 export type StoredMessage = { id: string; role: 'user' | 'assistant'; text: string; proposals: ProposalView[] };
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -17,7 +17,7 @@ export async function loadConversationAction(id: string): Promise<StoredMessage[
   const c = await getAiContext(); if (!c || !UUID.test(id)) return [];
   const { data } = await c.db.from('ai_messages').select('id, role, content, seq').eq('organization_id', c.ctx.org).eq('conversation_id', id).order('seq').limit(100);
   const ids = [...new Set((data ?? []).flatMap(m => ((m.content as { proposals?: string[] }).proposals ?? [])))];
-  const props = ids.length ? (await c.db.from('ai_proposals').select('id, kind, title, payload, status').in('id', ids)).data ?? [] : [];
+  const props = ids.length ? (await c.db.from('ai_proposals').select('id, kind, title, payload, status, workflow_id').in('id', ids)).data ?? [] : [];
   return (data ?? []).map(m => ({ id: m.id, role: m.role, text: String((m.content as { text?: string }).text ?? ''), proposals: ((m.content as { proposals?: string[] }).proposals ?? []).map(p => props.find(x => x.id === p)).filter(Boolean) as ProposalView[] }));
 }
 export async function deleteConversationAction(id: string): Promise<void> {

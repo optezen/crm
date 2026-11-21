@@ -4,8 +4,9 @@ import { Field } from '../../../../components/ui/Field';
 export function LeadFields({ lead, stages, members, userId, manager }: { lead?: LeadRow; stages?: readonly string[]; members?: MemberRow[]; userId?: string; manager?: boolean }) {
   return <div className="form-grid">
     <Field id="fullName" name="fullName" label="Name" required maxLength={120} defaultValue={lead?.fullName} autoComplete="off" />
-    <Field id="phone" name="phone" label="Phone" inputMode="tel" defaultValue={lead?.phone ?? ''} hint="Digits, optional leading +" />
-    <Field id="email" name="email" label="Email" type="email" defaultValue={lead?.email ?? ''} />
+    {lead?.contactHidden ? <p className="muted">Phone and email are hidden by your role, so they cannot be edited here. They are kept as they are.</p> : <>
+      <Field id="phone" name="phone" label="Phone" inputMode="tel" defaultValue={lead?.phone ?? ''} hint="Digits, optional leading +" />
+      <Field id="email" name="email" label="Email" type="email" defaultValue={lead?.email ?? ''} /></>}
     <div className="field"><label htmlFor="source">Source</label>
       <select id="source" name="source" className="input" defaultValue={lead?.source ?? 'phone'}>{LEAD_SOURCES.map(s => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}</select></div>
     {stages && <div className="field"><label htmlFor="stage">Stage</label>

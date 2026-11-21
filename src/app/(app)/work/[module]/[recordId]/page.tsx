@@ -5,7 +5,7 @@ import { canEditRecord, getRecord } from '../../../../../lib/records/service';
 import { activeFields, findModule, formatValue } from '../../../../../lib/records/validate';
 import { ActionForm } from '../../../../../components/ui/ActionForm';
 import { Card } from '../../../../../components/ui/Card';
-import { FieldInput } from '../../../../../components/ui/FieldInput';
+import { FormFields } from '../../../../../components/ui/FormFields';
 import { LocalTime } from '../../../../../components/ui/LocalTime';
 import { updateRecordAction } from '../actions';
 
@@ -22,7 +22,7 @@ export default async function RecordDetail({ params }: { params: Promise<{ modul
     <Card title="Details" description={editable ? undefined : 'You can view this record but only its creator, managers, admins and owners can edit it.'}>
       {editable
         ? <ActionForm action={updateRecordAction} submit="Save changes"><input type="hidden" name="module" value={module} /><input type="hidden" name="recordId" value={rec.id} />
-            <div className="form-grid">{fields.map(f => <FieldInput key={f.key} field={f} value={rec.data[f.key]} />)}</div></ActionForm>
+            <FormFields fields={fields} values={rec.data} /></ActionForm>
         : <dl className="kv">{fields.map(f => <><dt key={`t${f.key}`}>{f.label}</dt><dd key={`d${f.key}`}>{formatValue(f, rec.data[f.key]) || '—'}</dd></>)}</dl>}
     </Card>
     {hidden.length > 0 && <Card title="Hidden fields" description="These fields were hidden in Builder. Their values are kept and can be restored by showing the field again.">

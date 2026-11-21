@@ -16,6 +16,7 @@ Optizen is one platform. Every workspace, whatever the business, stores the same
 }
 ```
 
+- Optional field attributes added in migration 0017: `description` (help text, max 200) and `section` (form heading, max 40; neighbouring fields with the same section share a heading). Optional pipeline attributes: `stageSettings` (`{ [stageName]: { color, requires_assignee, requires_summary } }`, enforced when a lead moves into the stage) and `stageMoves` (`[{from,to}]` migration plan applied atomically at publish for renamed/merged/removed stages, then stripped from the published version).
 - Field kinds: `text`, `number`, `date`, `choice` (dropdown, with `options`), `yes_no` (checkbox), `phone`, `email`, `currency` (optional 3-letter `currency`, default INR). Field attributes: `required`, `archived` (hidden; data kept).
 - Module status: `active` (usable), `planned` (placeholder), `archived` (hidden everywhere, records kept).
 - `overview` and `leads` are core modules (the CRM engine runs on them): always present and active. `pipeline.stages` (2-20 unique names) drives lead stages.

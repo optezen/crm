@@ -1,7 +1,7 @@
 // Pure workspace-configuration logic shared by onboarding, the Builder (client + server) and tests. No framework imports.
 // validateConfig mirrors public.validate_workspace_definition (migration 0005); the database re-validates every write.
 import type { OperationsConfig, TaxConfig } from './types.ts';
-import { CORE_MODULES, FIELD_KINDS, type FieldConfig, type FieldKind, type ModuleConfig, type ObjectConfig, type Preset, type Result, type SetupChoice, type WorkspaceConfig } from './types.ts';
+import { CORE_MODULES, FIELD_DESC_MAX, FIELD_SECTION_MAX, FIELD_KINDS, STAGE_COLORS, type FieldConfig, type PipelineConfig, type StageColor, type StageMove, type StageSettings, type FieldKind, type ModuleConfig, type ObjectConfig, type Preset, type Result, type SetupChoice, type WorkspaceConfig } from './types.ts';
 import { getPreset } from './presets.ts';
 
 const KEY = /^[a-z0-9]+(-[a-z0-9]+)*$/, FIELD_KEY = /^[a-z][a-z0-9_]*$/;
@@ -96,6 +96,27 @@ export function validateConfig(input: unknown): { ok: true; value: WorkspaceConf
   if (!rawStages || stages.length < 2 || stages.length > 20) errors.push('The pipeline needs between 2 and 20 stages.');
   else if (stages.some(s => s.length < 1 || s.length > 80)) errors.push('Each pipeline stage needs a name of up to 80 characters.');
   else if (new Set(stages).size !== stages.length) errors.push('Pipeline stage names must be unique.');
+  const pipeline: PipelineConfig = { stages };
+  if (isObj(input.pipeline) && input.pipeline.stageSettings !== undefined) {
+    const ss = input.pipeline.stageSettings, out: Record<string, StageSettings> = {};
+    if (!isObj(ss) || Object.keys(ss).length > 20) errors.push('Stage settings are invalid.');
+    else for (const [name, v] of Object.entries(ss)) {
+      if (!stages.includes(name) || !isObj(v) || Object.keys(v).some(k => !['color', 'requires_assignee', 'requires_summary'].includes(k))
+        || (v.color !== undefined && !(STAGE_COLORS as readonly unknown[]).includes(v.color)) || (v.requires_assignee !== undefined && typeof v.requires_assignee !== 'boolean') || (v.requires_summary !== undefined && typeof v.requires_summary !== 'boolean')) { errors.push(`The settings for stage "${name}" are invalid.`); continue; }
+      const o: StageSettings = {}; if (v.color !== undefined && v.color !== 'gray') o.color = v.color as StageColor; if (v.requires_assignee === true) o.requires_assignee = true; if (v.requires_summary === true) o.requires_summary = true;
+      if (Object.keys(o).length) out[name] = o;
+    }
+    if (Object.keys(out).length) pipeline.stageSettings = out;
+  }
+  if (isObj(input.pipeline) && input.pipeline.stageMoves !== undefined) {
+    const mv = input.pipeline.stageMoves, out: StageMove[] = [];
+    if (!Array.isArray(mv) || mv.length > 20) errors.push('Stage moves are invalid.');
+    else for (const m of mv) {
+      if (!isObj(m) || Object.keys(m).some(k => k !== 'from' && k !== 'to') || typeof m.from !== 'string' || typeof m.to !== 'string' || stages.includes(m.from) || !stages.includes(m.to) || out.some(x => x.from === m.from)) { errors.push('A stage move is invalid: it must move leads out of a stage the pipeline no longer has, into one it does.'); continue; }
+      out.push({ from: m.from, to: m.to });
+    }
+    if (out.length) pipeline.stageMoves = out;
+  }
 
   if (!Array.isArray(input.objects) || input.objects.length > 20) errors.push('Record types must be a list of at most 20.');
   else for (const o of input.objects) {
@@ -116,6 +137,8 @@ export function validateConfig(input: unknown): { ok: true; value: WorkspaceConf
       const attr = (name: string) => (isObj(f) ? f[name] : undefined);
       if (attr('required') !== undefined && typeof attr('required') !== 'boolean') errors.push(`Field "${fl || fk}" has an invalid required setting.`);
       if (attr('archived') !== undefined && typeof attr('archived') !== 'boolean') errors.push(`Field "${fl || fk}" has an invalid hidden setting.`);
+      if (attr('description') !== undefined) { const dsc = attr('description'); if (typeof dsc === 'string' && dsc.trim().length <= FIELD_DESC_MAX) { if (dsc.trim()) field.description = dsc.trim(); } else errors.push(`Field "${fl || fk}" has an invalid description (up to ${FIELD_DESC_MAX} characters).`); }
+      if (attr('section') !== undefined) { const sec = attr('section'); if (typeof sec === 'string' && sec.trim().length <= FIELD_SECTION_MAX) { if (sec.trim()) field.section = sec.trim().replace(/\s+/g, ' '); } else errors.push(`Field "${fl || fk}" has an invalid section (up to ${FIELD_SECTION_MAX} characters).`); }
       if (attr('required') === true) field.required = true;
       if (attr('archived') === true) field.archived = true;
       if (attr('currency') !== undefined) { if (typeof attr('currency') === 'string' && /^[A-Z]{3}$/.test(attr('currency') as string)) field.currency = attr('currency') as string; else errors.push(`Field "${fl || fk}" needs a 3-letter currency code such as INR.`); }
@@ -131,7 +154,7 @@ export function validateConfig(input: unknown): { ok: true; value: WorkspaceConf
   let opsValue: OperationsConfig | undefined;
   if (input.operations !== undefined) { const r = validateOperations(input.operations); if (r.ok) opsValue = r.value; else errors.push(...r.errors); }
   if (errors.length) return { ok: false, errors: [...new Set(errors)] };
-  const cfg: WorkspaceConfig = { schemaVersion: 1, businessName: text(input.businessName), modules, objects, pipeline: { stages } };
+  const cfg: WorkspaceConfig = { schemaVersion: 1, businessName: text(input.businessName), modules, objects, pipeline };
   if (opsValue && Object.keys(opsValue).length) cfg.operations = opsValue;
   const description = typeof input.description === 'string' ? input.description.trim() : '';
   if (description) cfg.description = description.slice(0, 1000);
@@ -195,8 +218,11 @@ export function diffConfig(from: WorkspaceConfig, to: WorkspaceConfig): string[]
   for (const m of to.modules) { const o = fm.get(m.key); if (!o) out.push(`Add module "${m.label}"`); else if (o.label !== m.label) out.push(`Rename module "${o.label}" to "${m.label}"`); else if (o.status !== m.status) out.push(`Module "${m.label}": ${o.status} → ${m.status}`); }
   for (const m of from.modules) if (!tm.has(m.key)) out.push(`Remove module "${m.label}"`);
   const fs = from.pipeline.stages, ts = to.pipeline.stages;
-  for (const s of ts) if (!fs.includes(s)) out.push(`Add pipeline stage "${s}"`);
-  for (const s of fs) if (!ts.includes(s)) out.push(`Remove pipeline stage "${s}" (no lead may be left in it)`);
+  const moves = to.pipeline.stageMoves ?? [];
+  for (const m of moves) out.push(`Move leads from stage "${m.from}" to "${m.to}" when published${to.pipeline.stages.includes(m.from) ? '' : ` (stage "${m.from}" is removed)`}`);
+  for (const s of ts) if (!fs.includes(s) && !moves.some(m => m.to === s && !fs.includes(m.to))) out.push(`Add pipeline stage "${s}"`);
+  for (const s of fs) if (!ts.includes(s) && !moves.some(m => m.from === s)) out.push(`Remove pipeline stage "${s}" (no lead may be left in it)`);
+  for (const s of ts) { const a2 = from.pipeline.stageSettings?.[s], b2 = to.pipeline.stageSettings?.[s]; if (JSON.stringify(a2 ?? {}) !== JSON.stringify(b2 ?? {}) && fs.includes(s)) out.push(`Change settings of stage "${s}"`); }
   const kept = ts.filter(s => fs.includes(s)); if (kept.length > 1 && kept.join('\u0000') !== fs.filter(s => ts.includes(s)).join('\u0000')) out.push('Reorder pipeline stages');
   const fo = byKey(from.objects), to_ = byKey(to.objects);
   for (const o of to.objects) {
@@ -211,8 +237,11 @@ export function diffConfig(from: WorkspaceConfig, to: WorkspaceConfig): string[]
         if (q.kind !== f.kind) out.push(`"${o.label}": change type of "${f.label}" to ${f.kind}`);
         if ((q.options ?? []).join('|') !== (f.options ?? []).join('|')) out.push(`"${o.label}": change dropdown options of "${f.label}"`);
         if ((q.currency ?? '') !== (f.currency ?? '')) out.push(`"${o.label}": change currency of "${f.label}"`);
+        if ((q.description ?? '') !== (f.description ?? '')) out.push(`"${o.label}": change help text of "${f.label}"`);
+        if ((q.section ?? '') !== (f.section ?? '')) out.push(`"${o.label}": move "${f.label}" to section "${f.section ?? '(none)'}"`);
       } }
     for (const f of p.fields) if (!nf.has(f.key)) out.push(`"${o.label}": remove field "${f.label}"`);
+    const kept = o.fields.filter(f => pf.has(f.key)).map(f => f.key), was = p.fields.filter(f => nf.has(f.key)).map(f => f.key); if (kept.join('|') !== was.join('|')) out.push(`"${o.label}": reorder fields`);
   }
   for (const o of from.objects) if (!to_.has(o.key)) out.push(`Remove record type "${o.label}"`);
   out.push(...diffOperations(from.operations ?? {}, to.operations ?? {}));

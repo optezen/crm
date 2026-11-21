@@ -59,3 +59,7 @@ Optional Appointments, Inventory and Billing modules, enabled per workspace in B
 ## Dashboards, reports and permissions
 
 Build dashboards from real data at `/dashboards`, use the report library at `/reports`, and manage roles, branches and permissions at `/team/roles`. See [docs/ANALYTICS_AND_PERMISSIONS.md](docs/ANALYTICS_AND_PERMISSIONS.md).
+
+## Builder Studio
+
+Design workflows on a canvas, forms, pipelines (with a lead board) and dashboards visually; the AI, the canvas and the forms all use the same validated models. See [docs/BUILDER_STUDIO.md](docs/BUILDER_STUDIO.md).

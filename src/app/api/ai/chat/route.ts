@@ -18,6 +18,6 @@ export async function POST(req: Request) {
   if (!c) return json(401, { ok: false, error: { code: 'forbidden', message: 'Please sign in again.' } });
   const r = await runTurn({ provider: providerFor(), ctx: c.ctx, businessName: c.businessName }, { conversationId: (body.conversationId as string | null | undefined) ?? null, message: body.message });
   if (!r.ok) return json(r.error.code === 'not_found' ? 404 : r.error.code === 'budget' || r.error.code === 'busy' ? 429 : r.error.code === 'not_configured' ? 503 : r.error.code === 'invalid_message' ? 400 : 502, r);
-  const { data } = r.proposalIds.length ? await c.db.from('ai_proposals').select('id, kind, title, payload, status').in('id', r.proposalIds) : { data: [] };
+  const { data } = r.proposalIds.length ? await c.db.from('ai_proposals').select('id, kind, title, payload, status, workflow_id').in('id', r.proposalIds) : { data: [] };
   return json(200, { ok: true, conversationId: r.conversationId, text: r.text, proposals: data ?? [], toolCalls: r.toolCalls });
 }

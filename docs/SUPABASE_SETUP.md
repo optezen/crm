@@ -99,3 +99,9 @@ Apply `0006_custom_modules.sql` **before** deploying the app version that has cu
 
 - Apply `0014`, `0015`, `0016` in order after `0013`. 0014 adds restrictive RLS policies and write-guard triggers to many existing tables: it does not change what members WITHOUT a custom role can do, but test it against a copy of production first. 0014/0015 replace `integration_admin`, `automation_publish`, `automation_execute`, `ai_set_proposal_status` and `ai_create_proposal` with versions that add checks.
 - No new environment variables. Nothing is applied to production by the repository.
+
+## Deploying 0017 (Visual Builder, contact privacy)
+
+- Apply `0017_visual_builder.sql` after `0016`. It adds `automation_layouts`, wraps the workspace-definition validator, **replaces** `publish_workspace_config`, `crm_set_stage`, `crm_update_lead`, `ai_tool_get_lead` and `role_validate`, rebuilds the `crm_lead_list` view, and **revokes `select` on `contacts.phone` / `contacts.email` from `authenticated`**.
+- Before applying to production: any custom SQL, BI tool, or script that connects as `authenticated` (not the service role / postgres) and reads those two columns will start failing with `permission denied`; point it at `crm_lead_list` instead. The Optizen app itself is updated. Try it on a copy first.
+- Fonts for invoice PDFs ship in `assets/fonts` (no network at runtime). Self-hosted deployments need that directory next to the app (the standalone build includes it).

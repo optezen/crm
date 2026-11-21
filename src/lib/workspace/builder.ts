@@ -36,3 +36,17 @@ export async function restoreRevision(db: SupabaseClient, organizationId: string
   const { data, error } = await db.rpc('restore_workspace_revision', { p_org: organizationId, p_revision: revision });
   return error ? dbError(error) : { ok: true, value: { revision: data as number } };
 }
+
+// ---- visual editors (forms, pipeline): the same draft, saved with optimistic concurrency (migration 0017) ----
+export const CONFIG_CONFLICT = 'changed since you opened it';
+export type DraftMeta = { token: string; published: number | null };
+export async function draftMeta(db: SupabaseClient, organizationId: string): Promise<Result<DraftMeta>> {
+  const { data, error } = await db.rpc('workspace_draft_token', { p_org: organizationId });
+  return error ? dbError(error) : { ok: true, value: data as DraftMeta };
+}
+export async function saveVisualDraft(db: SupabaseClient, organizationId: string, raw: unknown, token: string, published: number | null): Promise<Result<DraftMeta & { revision: number }>> {
+  const v = validateConfig(raw);
+  if (!v.ok) return { ok: false, error: v.errors[0]! };
+  const { data, error } = await db.rpc('save_workspace_visual', { p_org: organizationId, p_definition: v.value, p_expected_token: token, p_expected_published: published });
+  return error ? dbError(error) : { ok: true, value: data as DraftMeta & { revision: number } };
+}

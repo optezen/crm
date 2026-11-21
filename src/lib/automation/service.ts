@@ -63,3 +63,18 @@ export async function listTeam(db: SupabaseClient, org: string): Promise<Result<
   const { data, error } = await db.rpc('team_list_members', { p_org: org });
   return error ? dbError(error) : { ok: true, value: (data as { user_id: string; role: string; email: string; active: boolean }[]).map(m => ({ userId: m.user_id, role: m.role, email: m.email, active: m.active })) };
 }
+
+// ---- visual builder: layout metadata + optimistic concurrency (migration 0017) ----
+import type { Layout } from '../builder/workflowGraph.ts';
+export const CONFLICT = 'changed since you opened it';
+export async function getVisualMeta(db: SupabaseClient, org: string, id: string): Promise<Result<{ layout: Layout | null; token: string }>> {
+  const [l, t] = await Promise.all([db.from('automation_layouts').select('layout').eq('organization_id', org).eq('workflow_id', id).maybeSingle(), db.rpc('automation_draft_token', { p_org: org, p_workflow: id })]);
+  if (l.error) return dbError(l.error); if (t.error) return dbError(t.error);
+  return { ok: true, value: { layout: (l.data?.layout as Layout | undefined) ?? null, token: t.data as string } };
+}
+export async function saveVisual(db: SupabaseClient, org: string, id: string | null, name: unknown, raw: unknown, layout: Layout | null, token: string | null, basePublished: number | null): Promise<Result<{ id: string; token: string }>> {
+  const v = validateAutomation(raw); if (!v.ok) return v;
+  if (typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 80) return { ok: false, error: 'Name the automation (up to 80 characters).' };
+  const { data, error } = await db.rpc('automation_save_visual', { p_org: org, p_workflow: id, p_name: name.trim(), p_definition: v.value, p_layout: layout, p_expected_token: token, p_expected_published: basePublished });
+  return error ? dbError(error) : { ok: true, value: data as { id: string; token: string } };
+}

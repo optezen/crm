@@ -10,7 +10,15 @@ export type FieldKind = (typeof FIELD_KINDS)[number];
 export const FIELD_KIND_LABEL: Record<FieldKind, string> = { text: 'Text', number: 'Number', date: 'Date', choice: 'Dropdown', yes_no: 'Checkbox', phone: 'Phone', email: 'Email', currency: 'Currency' };
 export const DEFAULT_CURRENCY = 'INR';
 /** `key` is the stable identifier records are stored under; renaming changes only `label`. `archived` hides the field without touching stored data. */
-export type FieldConfig = { key: string; label: string; kind: FieldKind; required?: boolean; archived?: boolean; options?: string[]; currency?: string };
+export type FieldConfig = { key: string; label: string; kind: FieldKind; required?: boolean; archived?: boolean; options?: string[]; currency?: string; /** Help text shown under the input (max 200). */ description?: string; /** Heading the field is grouped under in forms (max 40); sections appear in order of first use. */ section?: string };
+export const FIELD_DESC_MAX = 200, FIELD_SECTION_MAX = 40;
+export const STAGE_COLORS = ['gray', 'green', 'blue', 'amber', 'red', 'purple'] as const;
+export type StageColor = (typeof STAGE_COLORS)[number];
+/** Display and transition rules for a stage, keyed by stage name. Requirements are enforced by the database when a lead MOVES into the stage. */
+export type StageSettings = { color?: StageColor; requires_assignee?: boolean; requires_summary?: boolean };
+/** A migration plan applied atomically at publish: leads in `from` (a stage the new pipeline no longer has) move to `to`. Covers renaming and merging; never silent. */
+export type StageMove = { from: string; to: string };
+export type PipelineConfig = { stages: string[]; stageSettings?: Record<string, StageSettings>; stageMoves?: StageMove[] };
 export type ObjectConfig = { key: string; label: string; fields: FieldConfig[] };
 
 /** Optional business-operations modules. Enablement and rules are part of the versioned configuration (drafts, publish, rollback); the data lives in ordinary tables. */
@@ -39,7 +47,7 @@ export type WorkspaceConfig = {
   industryTemplate?: string;
   modules: ModuleConfig[];
   objects: ObjectConfig[];
-  pipeline: { stages: string[] };
+  pipeline: PipelineConfig;
   /** Optional operations modules (appointments, inventory, billing). Absent = all disabled. */
   operations?: OperationsConfig;
 };

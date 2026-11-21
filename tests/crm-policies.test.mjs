@@ -89,7 +89,7 @@ test('contacts are deduplicated per organization by phone/email, and conflicts a
   const [ra] = await rows(OWN, 'select contact_id, email from public.crm_lead_list where id=$1', [a]);
   const [rb] = await rows(OWN, 'select contact_id, email from public.crm_lead_list where id=$1', [b]);
   assert.equal(ra.contact_id, rb.contact_id, 'same phone -> same contact');
-  assert.equal((await rows(OWN, 'select email from public.contacts where id=$1', [ra.contact_id]))[0].email, 'dup@example.com', 'missing email filled in');
+  assert.equal((await rows(OWN, 'select email from public.crm_lead_list where contact_id=$1 limit 1', [ra.contact_id]))[0].email, 'dup@example.com', 'missing email filled in');
   await newLead(OWN, { name: 'Other', phone: '9000000002', email: 'other@example.com' });
   await fails(newLead(OWN, { name: 'Clash', phone: '9000000001', email: 'other@example.com' }), '23505');
   // same phone in ANOTHER organization is a different contact
@@ -132,8 +132,8 @@ test('role access: employees see own + unassigned leads; managers+ see all; cont
   assert.ok(e.has(mine) && e.has(open) && !e.has(theirs));
   const m = await vis(MGR); assert.ok(m.has(mine) && m.has(theirs) && m.has(open));
   assert.ok((await vis(OWN)).has(theirs) && (await vis(ADM)).has(theirs));
-  assert.equal((await rows(EMP, `select 1 from public.contacts where phone='9222222222'`)).length, 0, 'contact of hidden lead hidden');
-  assert.equal((await rows(EMP, `select 1 from public.contacts where phone='9222222221'`)).length, 1);
+  assert.equal((await rows(EMP, `select 1 from public.contacts where id=(select contact_id from public.leads where id=$1)`, [theirs])).length, 0, 'contact of hidden lead hidden');
+  assert.equal((await rows(EMP, `select 1 from public.contacts where id=(select contact_id from public.leads where id=$1)`, [mine])).length, 1);
   assert.equal((await rows(EMP, 'select 1 from public.lead_activities where lead_id=$1', [theirs])).length, 0);
   await fails(rpc(EMP, 'crm_add_note', ORG1, theirs, 'snoop'), 'P0002');
   await fails(rpc(EMP, 'crm_set_stage', ORG1, theirs, 'Contacted'), 'P0002');

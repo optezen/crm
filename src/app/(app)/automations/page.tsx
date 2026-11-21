@@ -6,6 +6,7 @@ import { listRuns, listWorkflows } from '../../../lib/automation/service';
 import { Card } from '../../../components/ui/Card';
 import { Notice } from '../../../components/ui/Notice';
 import { RunLog } from './RunLog';
+import { StudioNav } from '../../../components/studio/StudioNav';
 
 export default async function Automations() {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
@@ -13,6 +14,7 @@ export default async function Automations() {
   const db = await supabaseServer();
   const [wf, runs] = await Promise.all([listWorkflows(db, s.organizationId), listRuns(db, s.organizationId, undefined, 20)]);
   return <div className="stack">
+    <StudioNav current="workflows" />
     <div className="top"><div><span className="eyebrow">Optizen Automations</span><h1>Automations</h1><p className="muted">Do routine work automatically: assign new leads in rotation, create follow-up tasks, notify the team, update records. They run in the background, even when nobody is signed in.</p></div>
       <Link className="btn primary" href="/automations/new">Create automation</Link></div>
     <Notice title="Background worker required">Automations are processed by the Optizen automation worker (see docs/AUTOMATION.md). Until it is running in your deployment, enabled automations stay queued and nothing happens.</Notice>

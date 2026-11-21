@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { applyProposalAction, deleteConversationAction, listConversationsAction, loadConversationAction, type ConversationRow, type ProposalView, type StoredMessage } from '../app/(app)/assistant/actions';
 
@@ -23,6 +24,8 @@ function Proposal({ p, onChange }: { p: ProposalView; onChange: (p: ProposalView
     {p.status === 'draft_saved' && (p.kind === 'module_config'
       ? <div className="row"><button type="button" className="btn primary" disabled={pending} onClick={() => act('publish', 'Publish this configuration now? It becomes live for everyone. You can roll back from the Builder history.')}>Publish now</button><a className="btn" href="/builder">Review in Builder</a><button type="button" className="btn" disabled={pending} onClick={() => act('reject')}>Dismiss</button></div>
       : <div className="row"><button type="button" className="btn primary" disabled={pending} onClick={() => act('publish_enable', 'Publish and ENABLE this automation? It will run for new events as soon as the worker processes them.')}>Publish and enable</button><button type="button" className="btn" disabled={pending} onClick={() => act('publish_disabled')}>Publish, keep disabled</button><a className="btn" href="/automations">Open Automations</a></div>)}
+    {((p.kind === 'workflow' && ['pending', 'draft_saved'].includes(p.status)) || (p.kind === 'dashboard' && p.status === 'pending') || (p.kind === 'module_config' && p.status === 'draft_saved')) &&
+      <div className="row"><Link className="btn" href={p.kind === 'workflow' ? `/automations/new?proposal=${p.id}` : p.kind === 'dashboard' ? `/dashboards/new?proposal=${p.id}` : '/builder/forms'}>{p.kind === 'workflow' ? 'Review and edit on the canvas' : p.kind === 'dashboard' ? 'Review and edit in the dashboard editor' : 'Open in the form builder'}</Link></div>}
     {note && <p role={note.ok ? 'status' : 'alert'} className={note.ok ? 'ok' : 'err'}>{note.text}</p>}
   </div>;
 }

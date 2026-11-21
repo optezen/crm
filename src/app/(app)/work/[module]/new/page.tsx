@@ -3,7 +3,7 @@ import { getWorkspaceState } from '../../../../../lib/workspace/service';
 import { activeFields, findModule } from '../../../../../lib/records/validate';
 import { ActionForm } from '../../../../../components/ui/ActionForm';
 import { Card } from '../../../../../components/ui/Card';
-import { FieldInput } from '../../../../../components/ui/FieldInput';
+import { FormFields } from '../../../../../components/ui/FormFields';
 import { createRecordAction } from '../actions';
 
 export default async function NewRecord({ params }: { params: Promise<{ module: string }> }) {
@@ -16,7 +16,7 @@ export default async function NewRecord({ params }: { params: Promise<{ module: 
     <Card title="Details">
       {fields.length === 0 ? <p className="muted">No fields are defined for this module yet. An owner or admin can add them in Builder.</p>
         : <ActionForm action={createRecordAction} submit="Save record"><input type="hidden" name="module" value={module} />
-            <div className="form-grid">{fields.map(f => <FieldInput key={f.key} field={f} />)}</div></ActionForm>}
+            <FormFields fields={fields} /></ActionForm>}
     </Card>
   </div>;
 }

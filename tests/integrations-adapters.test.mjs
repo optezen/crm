@@ -31,7 +31,7 @@ test('credential encryption: round trip, random IV, tamper and wrong-key detecti
   assert.throws(() => decryptJson(a.slice(0, -2) + (a.endsWith('AA') ? 'BB' : 'AA'), key), /could not be decrypted/); assert.throws(() => decryptJson('garbage', key), /Malformed/);
   for (const bad of [undefined, '', 'short', Buffer.alloc(16).toString('base64')]) assert.throws(() => parseKey(bad), /32 random bytes/);
   const st = signState({ org: 'o', nonce: 'n', exp: Date.now() + 1000 }, key);
-  assert.equal(verifyState(st, key)?.org, 'o'); assert.equal(verifyState(st, key, Date.now() + 5000), null, 'expired'); assert.equal(verifyState(st.slice(0, -1) + 'x', key), null); assert.equal(verifyState(st, parseKey(randomBytes(32).toString('base64'))), null);
+  assert.equal(verifyState(st, key)?.org, 'o'); assert.equal(verifyState(st, key, Date.now() + 5000), null, 'expired'); assert.equal(verifyState((st[0] === 'A' ? 'B' : 'A') + st.slice(1), key), null, 'tampered state (first character always changes)'); assert.equal(verifyState(st, parseKey(randomBytes(32).toString('base64'))), null);
 });
 
 test('form parsing: JSON, urlencoded, WordPress/Elementor shapes, size and type limits, credential extraction', async () => {

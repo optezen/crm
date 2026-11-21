@@ -23,7 +23,7 @@ before(async () => {
 after(cleanup);
 
 test('unauthenticated users are redirected to /login from Work and Builder', opt, async () => {
-  for (const p of ['/work', '/builder', '/work/leads']) { const r = await get(p); assert.ok([302, 303, 307, 308].includes(r.status), `${p} -> ${r.status}`); assert.match(loc(r), /\/login$/); }
+  for (const p of ['/work', '/builder', '/work/leads', '/work/leads/board', '/builder/forms', '/builder/pipeline', '/automations/new', '/dashboards/new', '/reports', '/team/roles']) { const r = await get(p); assert.ok([302, 303, 307, 308].includes(r.status), `${p} -> ${r.status}`); assert.match(loc(r), /\/login$/); }
   assert.equal((await get('/login')).status, 200);
 });
 
@@ -32,6 +32,14 @@ test('Builder: owner allowed; employee denied; employee navigation omits Builder
   const e = await get('/builder', jar.employee.header()); assert.equal(e.status, 200);
   const html = await e.text(); assert.match(html, /Builder is limited to owners and admins/); assert.doesNotMatch(html, /Workspace configuration/);
   assert.doesNotMatch(await (await get('/work', jar.employee.header())).text(), />Builder</);
+});
+
+test('Builder Studio: owner allowed; employee gets the explanation, never the editors', opt, async () => {
+  for (const p of ['/builder/forms', '/builder/pipeline', '/automations/new']) {
+    assert.equal((await get(p, jar.owner.header())).status, 200, p);
+    const html = await (await get(p, jar.employee.header())).text(); assert.match(html, /limited to owners and admins/, p); assert.doesNotMatch(html, /Builder Studio/, p);
+  }
+  assert.equal((await get('/api/billing/invoices/not-an-id/pdf')).status, 401); assert.equal((await get('/api/billing/invoices/not-an-id/pdf', jar.owner.header())).status, 404);
 });
 
 test('a user with no organization is sent to /onboarding', opt, async () => {

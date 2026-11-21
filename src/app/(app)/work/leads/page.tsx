@@ -21,7 +21,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
   const filtered = Boolean(params.q || params.stage || params.source || params.assignee);
   return <div className="stack">
     <div className="top"><div><span className="eyebrow">Optizen Work mode</span><h1>Leads</h1><p className="muted">{total} {total === 1 ? 'lead' : 'leads'}{filtered ? ' match your filters' : ''}.</p></div>
-      <Link className="btn primary" href="/work/leads/new">New lead</Link></div>
+      <div className="row"><Link className="btn" href="/work/leads/board">Board view</Link><Link className="btn primary" href="/work/leads/new">New lead</Link></div></div>
     <form className="filters" method="get" role="search" aria-label="Filter leads">
       <div className="field grow"><label htmlFor="q">Search</label><input id="q" name="q" className="input" defaultValue={params.q} placeholder="Name, phone, email or notes" /></div>
       <div className="field"><label htmlFor="f-stage">Stage</label><select id="f-stage" name="stage" className="input" defaultValue={params.stage ?? ''}><option value="">All stages</option>{ctx.stages.map(s => <option key={s}>{s}</option>)}</select></div>
@@ -31,7 +31,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
     </form>
     <DataTable caption="Leads" rows={rows} empty={filtered ? 'No leads match these filters.' : 'No leads yet. Add your first lead to start the pipeline.'} columns={[
       { header: 'Name', cell: r => <Link href={`/work/leads/${r.id}`}><strong>{r.fullName}</strong></Link> },
-      { header: 'Contact', cell: r => <span>{r.phone ?? ''}{r.phone && r.email ? <br /> : null}{r.email ?? ''}{!r.phone && !r.email ? '—' : ''}</span> },
+      { header: 'Contact', cell: r => r.contactHidden ? <span className="muted">Hidden by your role</span> : <span>{r.phone ?? ''}{r.phone && r.email ? <br /> : null}{r.email ?? ''}{!r.phone && !r.email ? '—' : ''}</span> },
       { header: 'Stage', cell: r => <span className="badge">{r.stage}</span> },
       { header: 'Source', cell: r => SOURCE_LABEL[r.source] },
       { header: 'Assigned to', cell: r => who(r.assignedTo) },

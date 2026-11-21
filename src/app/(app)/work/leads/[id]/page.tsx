@@ -41,7 +41,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
 
     <div className="grid">
       <Card title="Contact">
-        <dl className="kv"><dt>Phone</dt><dd>{lead.phone ?? '—'}</dd><dt>Email</dt><dd>{lead.email ?? '—'}</dd><dt>Needs</dt><dd>{lead.summary ?? '—'}</dd></dl>
+        <dl className="kv"><dt>Phone</dt><dd>{lead.contactHidden ? <span className="muted">Hidden by your role</span> : lead.phone ?? '—'}</dd><dt>Email</dt><dd>{lead.contactHidden ? <span className="muted">Hidden by your role</span> : lead.email ?? '—'}</dd><dt>Needs</dt><dd>{lead.summary ?? '—'}</dd></dl>
       </Card>
       <Card title="Pipeline and ownership">
         <div className="stack">

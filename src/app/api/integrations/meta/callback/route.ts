@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getWorkspaceState } from '../../../../../lib/workspace/service';
 import { canBuild } from '../../../../../lib/workspace/resolve';
 import { supabaseServer } from '../../../../../lib/supabase/server';
-import { encryptJson, parseKey, verifyState, KEY_VERSION } from '../../../../../lib/integrations/crypto';
+import { encryptJson, keyringFromEnv, verifyState } from '../../../../../lib/integrations/crypto';
 import { MetaClient } from '../../../../../lib/integrations/meta';
 import { ProviderError } from '../../../../../lib/integrations/types';
 import { missingFor } from '../../../../../lib/integrations/env';
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const s = await getWorkspaceState();
   if (s.status !== 'ready' || !canBuild(s.role)) return fail(req, 'Only owners and admins can connect Meta.');
   if (missingFor('meta').length) return fail(req, 'Meta is not configured on this deployment.');
-  const key = parseKey(process.env.INTEGRATION_ENCRYPTION_KEY);
+  const ring = keyringFromEnv(process.env), key = ring.current;
   const st = verifyState<{ org: string; user: string; nonce: string }>(url.searchParams.get('state') ?? '', key);
   const cookie = req.headers.get('cookie')?.split(/;\s*/).find(c => c.startsWith('optizen_meta_oauth='))?.split('=')[1];
   // the organization comes from the signed state AND must equal the current membership; the nonce must match this browser's cookie
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     let conn = (await db.from('integration_connections').select('id').eq('organization_id', s.organizationId).eq('provider', 'meta_lead_ads').maybeSingle()).data?.id as string | undefined;
     if (!conn) { const c = await db.rpc('integration_create_connection', { p_org: s.organizationId, p_provider: 'meta_lead_ads', p_name: 'Meta Lead Ads', p_config: {} }); if (c.error) return fail(req, c.error.message); conn = (c.data as { id: string }).id; }
     const creds = { user_token: tok.token, pages: Object.fromEntries(pages.map(p => [p.id, p.access_token])) };
-    const stored = await db.rpc('integration_store_credentials', { p_org: s.organizationId, p_conn: conn, p_ciphertext: encryptJson(creds, key), p_expires_at: tok.expiresAt, p_key_version: KEY_VERSION });
+    const stored = await db.rpc('integration_store_credentials', { p_org: s.organizationId, p_conn: conn, p_ciphertext: encryptJson(creds, ring), p_expires_at: tok.expiresAt, p_key_version: ring.version });
     if (stored.error) return fail(req, 'Could not store the Meta credentials.');
     await db.rpc('integration_upsert_assets', { p_org: s.organizationId, p_conn: conn, p_assets: pages.map(p => ({ kind: 'page', external_id: p.id, name: p.name })) });
     await db.rpc('integration_set_status', { p_org: s.organizationId, p_conn: conn, p_status: 'setup_required', p_error: null });

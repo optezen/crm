@@ -11,7 +11,8 @@
     "test:integration": "node --env-file-if-exists=.env.test.local tests/integration/run.mjs",
     "test:browser": "node tests/browser/run.mjs",
     "test:concurrency": "node --test --test-concurrency=1 tests/concurrency/concurrency.test.mjs",
-    "test:security": "node --test --test-concurrency=1 tests/concurrency/security.test.mjs"
+    "test:security": "node --test --test-concurrency=1 tests/concurrency/security.test.mjs",
+    "test:workers": "node --test --test-concurrency=1 tests/concurrency/workers.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

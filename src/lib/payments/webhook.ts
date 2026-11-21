@@ -1,11 +1,11 @@
 // Web-side handling of a payment-gateway webhook. Order: find the connection (gateway credential only; no service key) -> decrypt its webhook secret ->
 // verify the signature on the RAW body -> normalize -> hand events to the database. Responses: 200 stored (including duplicates), 401 bad signature,
 // 404 unknown connection, 503 not configured or database trouble (non-2xx makes the gateway retry; stored duplicates are ignored).
-import { decryptJson } from '../integrations/crypto.ts';
+import { decryptJson, type Key } from '../integrations/crypto.ts';
 import { gatewayAdapter } from './gateway.ts';
 
 type Rpc = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-export type PaymentWebhookEnv = { INTEGRATION_GATEWAY_SECRET?: string; key: Buffer | null };
+export type PaymentWebhookEnv = { INTEGRATION_GATEWAY_SECRET?: string; key: Key | null };
 const res = (status: number, body: string) => new Response(body, { status, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
 export async function handlePaymentWebhook(req: Request, publicId: string, env: PaymentWebhookEnv, rpc: Rpc): Promise<Response> {
   if (req.method !== 'POST') return res(405, 'Method not allowed');

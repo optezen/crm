@@ -31,7 +31,7 @@ export function OperationsView({ data, actions }: { data: OpsData; actions: OpsA
         {data.workers.length > 0 && <div className="table-wrap" tabIndex={0} role="region" aria-label="Worker heartbeats"><table><caption className="sr-only">Worker heartbeats</caption><thead><tr><th scope="col">Worker</th><th scope="col">State</th><th scope="col">Last heartbeat</th><th scope="col">Version</th><th scope="col">Last problem</th></tr></thead><tbody>
           {data.workers.map(w => <tr key={`${w.worker}:${w.instance}`}><th scope="row">{WORKER_LABEL[w.worker] ?? w.worker}<div className="muted" style={{ fontSize: 12 }}>{counters(w.stats)}</div></th>
             <td><span className={`badge ${w.healthy ? '' : 'late'}`}>{w.healthy ? 'Running' : 'Not reporting'}</span></td><td><LocalTime iso={w.last_seen} /></td><td>{w.version ?? '—'}</td>
-            <td>{w.last_error ? <><span className="err">{w.last_error}</span>{w.last_error_at && <> · <LocalTime iso={w.last_error_at} /></>}</> : '—'}</td></tr>)}</tbody></table></div>}
+            <td>{typeof w.stats.token_days_left === 'number' && w.stats.token_days_left < 30 && <div role="alert" className="err"><strong>Worker token expires in {Math.max(w.stats.token_days_left, 0)} day{w.stats.token_days_left === 1 ? '' : 's'}.</strong> Renew it (docs/WORKERS.md).</div>}{w.last_error ? <><span className="err">{w.last_error}</span>{w.last_error_at && <> · <LocalTime iso={w.last_error_at} /></>}</> : '—'}</td></tr>)}</tbody></table></div>}
       </div></Card>
 
     <Card title="Queue backlog" description="Work waiting to be processed for this workspace. A growing number with a healthy worker means a provider is slow or failing.">

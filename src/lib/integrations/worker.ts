@@ -1,13 +1,13 @@
 // Background processing for integrations (runs in the Fly.io worker with the service-role key). All state lives in Postgres; this code is a thin,
 // dependency-injected loop so it can be tested offline with mocked HTTP. It never sends anything without stored, decryptable credentials and (for
 // WhatsApp) a configured, provider-approved template.
-import { decryptJson } from './crypto.ts';
+import { decryptJson, type Key } from './crypto.ts';
 import { MetaClient, MetaLeadAdapter, type MetaCreds } from './meta.ts';
 import { messagingAdapter, toWhatsAppNumber } from './whatsapp.ts';
 import { ProviderError, type Fetch } from './types.ts';
 
 type RpcResult = { data: unknown; error: { message: string } | null };
-export type WorkerDeps = { rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<RpcResult>; credentials: (connectionId: string) => Promise<string | null>; fetch: Fetch; key: Buffer };
+export type WorkerDeps = { rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<RpcResult>; credentials: (connectionId: string) => Promise<string | null>; fetch: Fetch; key: Key };
 const must = async (p: PromiseLike<RpcResult>) => { const r = await p; if (r.error) throw new Error(r.error.message); return r.data; };
 
 async function creds<T>(d: WorkerDeps, connectionId: string): Promise<T> {

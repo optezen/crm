@@ -13,13 +13,14 @@ export const uid = n => `00000000-0000-0000-0000-0000000000${n}`;
 export const [EMP, EMP2, MGR, ADM] = ['c3', 'd4', 'e5', 'f6'].map(uid);
 const isJson = v => v !== null && typeof v === 'object';
 
-export async function startPg({ migrations = true } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'optizen-pg-')); const port = await freePort();
-  const server = new EmbeddedPostgres({ databaseDir: dir, user: 'postgres', password: 'pw', port, persistent: false, onLog: () => {}, onError: () => {} });
-  await server.initialise(); await server.start(); await server.createDatabase('t');
+/** attach: an existing data directory (a restored backup or a crashed server): start it as it is, no initdb, no roles, no migrations. keep: leave the data directory in place when stopping. */
+export async function startPg({ migrations = true, attach, keep = false } = {}) {
+  const dir = attach ?? mkdtempSync(join(tmpdir(), 'optizen-pg-')); const port = await freePort();
+  const server = new EmbeddedPostgres({ databaseDir: dir, user: 'postgres', password: 'pw', port, persistent: keep || !!attach, onLog: m => { if (process.env.PG_DEBUG) console.error(String(m)); }, onError: () => {} });
+  if (!attach) { await server.initialise(); } await server.start(); if (!attach) await server.createDatabase('t');
   const conf = { host: 'localhost', port, user: 'postgres', password: 'pw', database: 't' };
   const pool = new pg.Pool({ ...conf, max: 60 }); pool.on('error', () => {});
-  await pool.query(`create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
+  if (!attach) await pool.query(`create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
     create schema auth; create table auth.users (id uuid primary key, email text);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema auth to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;
@@ -28,7 +29,7 @@ export async function startPg({ migrations = true } = {}) {
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
     insert into auth.users values ('${EMP}','emp@x.test'),('${EMP2}','emp2@x.test'),('${MGR}','mgr@x.test'),('${ADM}','adm@x.test');`);
   await Promise.all(Array.from({ length: 40 }, () => pool.connect())).then(cs => cs.forEach(c => c.release())); // warm 40 backends so concurrent calls really start together
-  if (migrations) for (const f of readdirSync(MIGRATIONS).filter(f => f.endsWith('.sql')).sort()) await pool.query(readFileSync(new URL(f, MIGRATIONS), 'utf8'));
+  if (migrations && !attach) for (const f of readdirSync(MIGRATIONS).filter(f => f.endsWith('.sql')).sort()) await pool.query(readFileSync(new URL(f, MIGRATIONS), 'utf8'));
   /** One transaction on its own connection, like a PostgREST request. role: 'authenticated' | 'anon' | 'service_role' | 'optizen_worker'. Returns { data, error, pid }. */
   const rpc = async (user, fn, args = {}, role) => {
     const c = await pool.connect(); const r = role ?? (user ? 'authenticated' : 'anon');
@@ -44,6 +45,6 @@ export async function startPg({ migrations = true } = {}) {
   /** Run a read as a signed-in user (for table functions and views). */
   const asUser = async (user, sql, params) => { const c = await pool.connect(); try { await c.query('begin'); await c.query('set local role authenticated'); await c.query(`select set_config('request.jwt.claim.sub', $1, true)`, [user]); const r = await c.query(sql, params); await c.query('commit'); return r.rows; } catch (e) { await c.query('rollback').catch(() => {}); throw e; } finally { c.release(); } };
   const q = async (sql, params) => (await pool.query(sql, params)).rows; // superuser: for assertions only
-  const stop = async () => { await pool.end().catch(() => {}); await server.stop().catch(() => {}); rmSync(dir, { recursive: true, force: true }); };
-  return { rpc, q, asUser, pool, stop, port, conf };
+  const stop = async ({ remove = !(keep || attach) } = {}) => { await pool.end().catch(() => {}); await server.stop().catch(() => {}); if (remove) rmSync(dir, { recursive: true, force: true }); };
+  return { rpc, q, asUser, pool, stop, port, conf, server, dir };
 }

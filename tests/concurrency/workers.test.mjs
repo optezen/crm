@@ -13,6 +13,8 @@ import { startRestMock, signJwt } from './postgrest-mock.mjs';
 import { decryptJson, encryptJson, keyringFromEnv, credentialVersion, parseKey } from '../../src/lib/integrations/crypto.ts';
 import { rekeyAll } from '../../src/lib/integrations/rekey.ts';
 import { tokenDaysLeft } from '../../src/lib/workers/token.ts';
+import { handleWorkerHealth, evaluateWorkers } from '../../src/lib/ops/worker-health.ts';
+import { timingSafeEqual } from 'node:crypto';
 
 const JWT_SECRET = 'test-jwt-secret-' + 'x'.repeat(32); const ROOT = new URL('../../', import.meta.url).pathname;
 let env, rpc, q, rest; const children = new Set();
@@ -122,4 +124,16 @@ test('[workers] authentication failures: forged, expired and wrong-role tokens a
 test('[workers] a worker with the service-role fallback says so; a worker with no credentials refuses to start', async () => {
   const svc = launch('maintenance', { SUPABASE_SERVICE_ROLE_KEY: workerToken(5, 'service_role'), PORT: String(await freePort()) }, ['--once']); const r = await svc.exited; assert.equal(r.code, 0); assert.match(svc.text(), /service-role key/i);
   const none = launch('maintenance', {}, ['--once']); const r2 = await none.exited; assert.equal(r2.code, 1); assert.match(none.text(), /Set SUPABASE_URL/);
+});
+
+test('[monitoring] the uptime check reports 200 only while every worker is reporting; a stale or missing worker is a 503 naming it; no token, no answer', async () => {
+  const GW = 'm'.repeat(40), TOKEN = 'monitor-token-0123456789'; ok(await rpc(null, 'integration_set_gateway_secret', { p_secret: GW }, 'service_role')); await q('delete from public.worker_heartbeats');
+  const beat = w => rpc(null, 'worker_heartbeat', { p_worker: w, p_instance: `${w}-1`, p_version: 'v', p_stats: {}, p_error: null }, 'optizen_worker');
+  const check = (headers = { authorization: `Bearer ${TOKEN}` }, env = { OPS_HEALTH_TOKEN: TOKEN, INTEGRATION_GATEWAY_SECRET: GW }) => handleWorkerHealth(new Request('https://x.test/api/health/workers', { headers }), env, async (fn, args) => { const r = await rpc(null, fn, args); return { data: r.data, error: r.error }; }, timingSafeEqual);
+  let r = await check(); assert.equal(r.status, 503, 'no workers at all is not healthy'); assert.deepEqual((await r.json()).missing, ['automation', 'integrations', 'maintenance']);
+  for (const w of ['automation', 'integrations', 'maintenance']) ok(await beat(w)); r = await check(); assert.equal(r.status, 200); assert.equal((await r.json()).ok, true);
+  await q(`update public.worker_heartbeats set last_seen = now() - interval '5 minutes' where worker='integrations'`); r = await check(); const body = await r.json(); assert.equal(r.status, 503); assert.deepEqual(body.stale, ['integrations']); assert.ok(!JSON.stringify(body).match(/organization|user|email/i), 'only worker names and ages');
+  await q(`delete from public.worker_heartbeats where worker='maintenance'`); ok(await beat('integrations')); r = await check(); assert.deepEqual((await r.json()).missing, ['maintenance']);
+  assert.equal((await check({})).status, 401); assert.equal((await check({ authorization: 'Bearer wrong-token-0123456789' })).status, 401); assert.equal((await check(undefined, { OPS_HEALTH_TOKEN: 'short', INTEGRATION_GATEWAY_SECRET: GW })).status, 503, 'a weak token is refused outright'); assert.equal((await check(undefined, { OPS_HEALTH_TOKEN: TOKEN, INTEGRATION_GATEWAY_SECRET: 'wrong'.repeat(9) })).status, 503);
+  assert.equal(ok(await rpc(null, 'worker_health_check', { p_gateway_secret: 'nope' })).status, 'unauthorized'); assert.deepEqual(evaluateWorkers({ status: 'ok', expected: ['a'], workers: [] }), { ok: false, stale: [], missing: ['a'], workers: [] });
 });

@@ -12,7 +12,8 @@
     "test:browser": "node tests/browser/run.mjs",
     "test:concurrency": "node --test --test-concurrency=1 tests/concurrency/concurrency.test.mjs",
     "test:security": "node --test --test-concurrency=1 tests/concurrency/security.test.mjs",
-    "test:workers": "node --test --test-concurrency=1 tests/concurrency/workers.test.mjs"
+    "test:workers": "node --test --test-concurrency=1 tests/concurrency/workers.test.mjs",
+    "test:perf": "node --test --test-concurrency=1 --test-timeout=600000 tests/concurrency/performance.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

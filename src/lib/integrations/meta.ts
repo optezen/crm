@@ -16,15 +16,16 @@ export function authUrl(p: { appId: string; redirectUri: string; state: string; 
 
 /** Classifies a Graph error (https://developers.facebook.com/docs/graph-api/guides/error-handling).
  * 190 = token invalid; subcodes 463 expired / 467 invalid / 460 password changed / 492 the user no longer has a role on the Page; 458 = the app is no longer installed on the Page;
- * 4/17/32/341/613 = throttling; 10 and 200-299 = a permission was not granted or was removed; 1/2 and 5xx = transient. */
+ * 4/17/32/341/613 = throttling (plus WhatsApp 80007 account, 130429 throughput, 131056 pair rate limits); 459/464 = account checkpoint/unconfirmed; 10 and 200-299 = a permission was not granted or was removed; 1/2 and 5xx = transient. */
 export function classify(status: number, body: unknown): ProviderError {
   const e = (body as { error?: { message?: string; code?: number; error_subcode?: number } } | null)?.error;
   const code = e?.code, sub = e?.error_subcode, msg = e?.message ?? `Meta returned HTTP ${status}`;
   if (sub === 458) return new ProviderError('The app is no longer installed on this Page. Reconnect Meta and select the Page again.', 'auth', '458');
   if (sub === 492) return new ProviderError('The person who connected Meta no longer has the required role on this Page. Reconnect with an account that can advertise on the Page.', 'auth', '492');
+  if (sub === 459 || sub === 464) return new ProviderError('The connected Facebook account needs attention (checkpoint or unconfirmed). Log in to Facebook, then reconnect Meta.', 'auth', '190');
   if (sub === 460) return new ProviderError('The connected Facebook password was changed. Reconnect Meta.', 'auth', '190');
   if (code === 190 || status === 401) return new ProviderError(`Meta rejected the access token (${sub === 463 ? 'expired' : sub === 467 ? 'invalid' : 'expired, revoked or invalid'}). Reconnect Meta.`, 'auth', String(code ?? status));
-  if (code !== undefined && [4, 17, 32, 341, 613].includes(code) || status === 429) return new ProviderError(`Meta rate limit: ${msg}`, 'rate_limit', String(code ?? status));
+  if (code !== undefined && [4, 17, 32, 341, 613, 80007, 130429, 131056].includes(code) || status === 429) return new ProviderError(`Meta rate limit: ${msg}`, 'rate_limit', String(code ?? status));
   if (code === 10 || (code !== undefined && code >= 200 && code <= 299) || status === 403) return new ProviderError(`A Meta permission is missing or was removed (${msg}). Reconnect Meta and approve every requested permission.`, 'permanent', String(code ?? status));
   if (status >= 500 || code === 1 || code === 2) return new ProviderError(`Meta is temporarily unavailable: ${msg}`, 'transient', String(code ?? status));
   return new ProviderError(msg, 'permanent', String(code ?? status));

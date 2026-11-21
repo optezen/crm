@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getWorkspaceState } from '../../lib/workspace/service';
-const TABS = [['home', '/builder/home', 'Overview'], ['modules', '/builder', 'Modules'], ['forms', '/builder/forms', 'Forms'], ['pipeline', '/builder/pipeline', 'Pipeline'], ['workflows', '/automations', 'Workflows'], ['dashboards', '/dashboards', 'Dashboards'], ['team', '/team', 'Team & roles'], ['connections', '/builder/connections', 'Connections'], ['ai', '/settings/ai', 'AI']] as const;
+const TABS = [['home', '/builder/home', 'Overview'], ['modules', '/builder', 'Modules'], ['forms', '/builder/forms', 'Forms'], ['pipeline', '/builder/pipeline', 'Pipeline'], ['workflows', '/automations', 'Workflows'], ['dashboards', '/dashboards', 'Dashboards'], ['team', '/team', 'Team & roles'], ['connections', '/builder/connections', 'Connections'], ['operations', '/builder/operations', 'Operations'], ['ai', '/settings/ai', 'AI']] as const;
 export type StudioTab = (typeof TABS)[number][0];
 /** One navigation for every configuration screen, so Builder reads as a single place. Work Mode is separate (the sidebar). The AI tab is shown to the owner only. */
 export async function StudioNav({ current }: { current: StudioTab }) {

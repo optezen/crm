@@ -111,3 +111,10 @@ Apply `0006_custom_modules.sql` **before** deploying the app version that has cu
 - Optional environment: `OPENAI_API_KEY` (or `OPTIZEN_SPEECH_API_KEY`) enables voice input; `OPTIZEN_SPEECH_MODEL`, `OPTIZEN_SPEECH_BASE_URL` override defaults.
 
 - Task 14: apply `0019_user_experience.sql` after 0018. It adds invitations, profiles, notification preferences/categories, notification triggers, `home_summary()` and `global_search()`. No environment variables are needed; invitations are shared as links (no email is sent). Browser tests: `npm run build && npm run test:browser` (needs `npx playwright install chromium`).
+
+## Deploying 0020 (Reliability, reminders, payments foundation)
+
+- Apply `0020_reliability.sql` after 0019. **Do not apply it to the hosted project without approval.** It is additive: heartbeat, reminder, consent, outbound-log and payment-gateway tables, the restricted `optizen_worker` role, replacements of the integration worker functions (consent gate, at-most-once claims), `maintenance_tick`, `reminders_process`, and the payment gateway functions. It also changes behaviour: WhatsApp messages are only claimed for contacts with a recorded opt-in, and a send that was interrupted is marked *Delivery uncertain* instead of being retried.
+- Web app: no new required variables. Payments webhooks reuse `INTEGRATION_GATEWAY_SECRET` and `INTEGRATION_ENCRYPTION_KEY`.
+- Workers: replace `SUPABASE_SERVICE_ROLE_KEY` with `WORKER_JWT` + `SUPABASE_ANON_KEY` (see `docs/WORKERS.md`). Deploy `fly.worker.toml` (three process groups); the old `worker/fly.toml` was removed.
+- Order: apply the migration, then deploy the web app, then the workers. Rolling back the web app alone is safe; rolling back the workers to the old image would bypass the consent gate, so do not.

@@ -42,7 +42,7 @@ Target is Fly.io. Next.js `output: 'standalone'` is configured. Deploy after pro
 
 ## Automations
 
-Owners/admins build trigger -> conditions -> actions workflows at `/automations`. A background worker (`worker/automation-worker.mjs`) executes them; see [docs/AUTOMATION.md](docs/AUTOMATION.md) for design, limits and the infrastructure to configure.
+Owners/admins build trigger -> conditions -> actions workflows at `/automations`. A background worker (`worker/automation-worker.mjs`) executes them; see [docs/WORKERS.md](docs/WORKERS.md) for running workers, [docs/PROVIDERS.md](docs/PROVIDERS.md) for provider setup and [docs/WEBSITE_FORMS.md](docs/WEBSITE_FORMS.md) for website forms, and [docs/AUTOMATION.md](docs/AUTOMATION.md) for design, limits and the infrastructure to configure.
 
 ## Connections
 

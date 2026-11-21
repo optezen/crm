@@ -35,7 +35,7 @@ export class MetaCloudAdapter implements MessagingAdapter {
   async send(msg: OutboundMessage, creds: unknown): Promise<{ messageId: string }> {
     const c = creds as MetaCloudCreds;
     const b = await this.call(`/${encodeURIComponent(c.phone_number_id)}/messages`, c, { method: 'POST', body: {
-      messaging_product: 'whatsapp', to: msg.to, type: 'template', ...(msg.reference ? { biz_opaque_callback_data: msg.reference } : {}),
+      messaging_product: 'whatsapp', recipient_type: 'individual', to: msg.to, type: 'template', ...(msg.reference ? { biz_opaque_callback_data: msg.reference } : {}),
       template: { name: msg.templateName, language: { code: msg.language }, components: msg.bodyParams.length ? [{ type: 'body', parameters: msg.bodyParams.map(text => ({ type: 'text', text })) }] : [] } } });
     const id = (b.messages as { id?: string }[] | undefined)?.[0]?.id;
     if (!id) throw new ProviderError('WhatsApp accepted the request but returned no message id.', 'permanent');

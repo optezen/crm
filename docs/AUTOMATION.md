@@ -31,8 +31,7 @@ Known limits: conditions use the data at event time (actions re-read the live le
 ## Infrastructure required before automations run in production
 
 1. **Apply migrations `0005`, `0006`, `0007`** (in order) before deploying the app that contains this code.
-2. **Run the worker** (the app does not process automations itself). `worker/automation-worker.mjs` needs Node 22, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (**service-role key: set it only on the worker, never in the web app/Vercel project**). Optional: `AUTOMATION_POLL_MS` (default 5000), `AUTOMATION_BATCH` (default 20). Run several copies for throughput; they coordinate through the database.
-   * Fly.io: `fly launch --no-deploy`, set the secrets with `fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...`, build with `worker/Dockerfile` (`fly deploy --config worker/fly.toml --dockerfile worker/Dockerfile`; run from the repo root). One always-on machine, no HTTP service. Review both files before first use: they have not been deployed.
+2. **Run the workers** (the app does not process automations itself). Deployment, credentials (the restricted `WORKER_JWT`, not the service-role key), scaling and recovery are in [WORKERS.md](WORKERS.md); `fly deploy -c fly.worker.toml` from the repository root.
    * Alternative: a scheduler (cron, GitHub Actions, Supabase cron + Edge Function) running `node worker/automation-worker.mjs --once` every minute; delays then have up-to-a-minute granularity.
 3. Make sure the Supabase project's statement timeout allows a tick (default batches are small).
 4. Monitor `automation_runs` with `status = 'dead'` (shown as Failed in the UI) and the age of the oldest `queued`/`waiting` run past its `next_attempt_at`.

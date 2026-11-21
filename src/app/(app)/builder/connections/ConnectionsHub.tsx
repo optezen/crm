@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '../../../../components/ui/Card';
 import { LocalTime } from '../../../../components/ui/LocalTime';
+import { CopyButton } from '../../../../components/ui/CopyButton';
 import { CRM_TARGETS, PROVIDER_INFO, STATUS_LABEL, TARGET_LABEL, type ConnectionRow, type CrmTarget } from '../../../../lib/integrations/types';
 import { META_PERMISSIONS } from '../../../../lib/integrations/env';
 import type { HubData } from '../../../../lib/integrations/service';
@@ -25,7 +26,9 @@ const Contract = ({ id, extra }: { id: 'google_ads' | 'telephony' | 'payments'; 
 function Snippets({ url, secret, urlKeyAllowed }: { url: string; secret?: string; urlKeyAllowed: boolean }) {
   const k = secret ?? '<YOUR_SECRET>';
   return <div className="stack" style={{ gap: 8 }}>
-    <details><summary>WordPress (Elementor, Contact Form 7, Gravity Forms)</summary><ol><li><strong>Preferred:</strong> use a webhook plugin that can send an <code>Authorization: Bearer {k}</code> header to <code>{url}</code>, or post from your theme/plugin code on the server (see the PHP example in the docs).</li><li><strong>Elementor Pro’s Webhook action cannot set headers.</strong> Only if you must use it: enable “Allow the credential in the URL” below, then use <code>{url}?key={k}</code>. A credential in a URL can end up in server logs and browser history, so keep the URL private and rotate the secret regularly. {urlKeyAllowed ? 'Currently ENABLED for this connection.' : 'Currently disabled: URL credentials are refused.'}</li><li>Common field names (name, email, phone, message) map automatically; use the mapping below for others.</li></ol></details>
+    {urlKeyAllowed && <p role="alert" className="err"><strong>URL credentials are enabled.</strong> The secret can appear in server logs and browser history. Use it only for tools that cannot send headers, keep the URL private and rotate the secret regularly.</p>}
+    <details><summary>WordPress (Contact Form 7, WPForms, Gravity Forms, any theme)</summary><ol><li>Add <code>OPTIZEN_FORM_URL</code> (<code>{url}</code>) and <code>OPTIZEN_FORM_SECRET</code> to <code>wp-config.php</code>; the secret never goes in a page or in browser code.</li><li>Post from the server with <code>wp_remote_post</code>, header <code>Authorization: Bearer {k}</code> and an <code>Idempotency-Key</code> per entry. Ready-to-paste code for each form plugin, with retries, is in docs/WEBSITE_FORMS.md.</li><li>Test with the curl example below, then submit the real form once.</li></ol></details>
+    <details><summary>Elementor Pro</summary><ol><li><strong>Recommended:</strong> a small <code>elementor_pro/forms/new_record</code> hook sends the submission from the server with the header credential (code in docs/WEBSITE_FORMS.md). Name your field ids <code>name</code>, <code>email</code>, <code>phone</code>, <code>message</code> to map automatically.</li><li><strong>Webhook action (no code):</strong> it cannot set headers. Enable “Allow the credential in the URL” below, then use <code>{url}?key={k}</code>. {urlKeyAllowed ? 'Currently ENABLED for this connection.' : 'Currently disabled: URL credentials are refused.'}</li></ol></details>
     <details><summary>Next.js (server action or route handler)</summary><pre style={{ overflow: 'auto' }}>{`// Server-side only: never put the secret in browser code.
 await fetch("${url}", {
   method: "POST",
@@ -68,8 +71,8 @@ function FormConnection({ c, data, siteUrl, reveal, onReveal }: { c: ConnectionR
     <div className="row"><strong>{c.name}</strong><Status s={c.status} /></div>
     <Health c={c} counts={data.counts[c.id]} />
     {c.status === 'not_connected' ? <p className="muted">Disconnected. Rotate the secret to enable it again.</p> : <>
-      <div className="field"><label>Webhook URL</label><input className="input" readOnly value={url} onFocus={e => e.currentTarget.select()} /></div>
-      {reveal ? <div className="notice" role="status"><strong>Your secret (shown once)</strong><code style={{ wordBreak: 'break-all' }}>{reveal.secret}</code><span className="muted">Store it in your site’s settings now. Optizen keeps only a hash and cannot show it again.</span></div> : <p className="muted">The secret was shown when the connection was created. Lost it? Rotate to get a new one (the old one stops working immediately).</p>}
+      <div className="field"><label htmlFor={`url-${c.id}`}>Webhook URL</label><div className="row"><input id={`url-${c.id}`} className="input" style={{ flex: 1, minWidth: 0 }} readOnly value={url} onFocus={e => e.currentTarget.select()} /><CopyButton value={url} label="webhook URL" /></div></div>
+      {reveal ? <div className="notice" role="status"><strong>Your secret (shown once)</strong><span className="row"><code style={{ wordBreak: 'break-all' }}>{reveal.secret}</code><CopyButton value={reveal.secret} label="secret" /></span><span className="muted">Store it in your site’s settings now. Optizen keeps only a hash and cannot show it again.</span></div> : <p className="muted">The secret was shown when the connection was created. Lost it? Rotate to get a new one (the old one stops working immediately).</p>}
       {c.status === 'setup_required' && <p className="muted">Status becomes Connected after the first real submission is received.</p>}
       <Snippets url={url} secret={reveal?.secret} urlKeyAllowed={c.config.allow_query_key === true} />
       <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={c.config.allow_query_key === true} disabled={pending} onChange={e => run(() => setAllowQueryKeyAction(c.id, e.target.checked))} /> Allow the credential in the URL (less secure; only for plugins that cannot send headers)</label>

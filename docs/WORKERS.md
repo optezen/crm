@@ -32,7 +32,8 @@ Mint the token once, on an operator machine (never in CI logs):
 ```bash
 SUPABASE_JWT_SECRET='<project JWT secret>' node worker/mint-worker-token.mjs 365   # valid 365 days
 ```
-Revoke by rotating the project JWT secret (this also signs everyone out of the app, so schedule it) or by revoking the role's grants. Put a calendar reminder to mint a new token before it expires; an expired token shows up as workers that stop reporting.
+**Renewal (tested):** workers report `token_days_left` in every heartbeat; Builder → Operations warns below 30 days. Mint the new token while the old one is still valid, then either write it to the file named by `WORKER_JWT_FILE` (re-read on every request: **no restart**) or `fly secrets set WORKER_JWT=…` (rolling restart). The old token simply expires. An expired or forged token makes the worker exit (`--once`) or retry with backoff and stop reporting; it is never logged. Revoke early by rotating the project JWT secret (signs everyone out: schedule it).
+**Encryption-key rotation (tested):** `docs/KEY_ROTATION.md` (`worker/rekey-credentials.mjs`).
 
 ## Deploy on Fly.io
 Prerequisite: migrations through `0020` are applied to the target Supabase project (see SUPABASE_SETUP.md).
@@ -53,7 +54,7 @@ One copy of each is enough for a pilot. `automation` and `integrations` may run 
 ## Health and monitoring
 - **Builder → Operations** (owners/admins): each worker's heartbeat (a worker is *Not reporting* after 2 minutes), queue backlog and oldest due automation run, dead-lettered items with a Retry button, uncertain WhatsApp sends, connection status and recent secret-free errors.
 - Heartbeats carry counters and an error **class** only (never data). Logs are JSON lines; they contain ids and error classes, no message text, phone numbers or tokens.
-- External monitoring: point an uptime check at each machine's `/healthz` (Fly does this), and alert if *no* worker has reported for > 5 minutes. The Operations page cannot warn you if the whole database is unreachable.
+- External monitoring: `GET /api/health/workers` with `Authorization: Bearer $OPS_HEALTH_TOKEN` returns 200 only while automation, integrations and maintenance all have a fresh heartbeat (503 names the stale or missing one): point an uptime monitor at it. Also keep the Fly `/healthz` checks. The Operations page cannot warn you if the whole database is unreachable.
 
 ## Failure recovery runbook
 | Situation | What happens | What you do |
@@ -70,3 +71,6 @@ One copy of each is enough for a pilot. `automation` and `integrations` may run 
 
 ## Data retention
 Processed webhook payloads are purged after 30 days, worker heartbeats after 7, the AI request log after 2, and the outbound message log (no message text, no numbers) after 180 days, by `maintenance_tick`.
+
+## How these processes are tested
+`npm run test:workers` starts the **real** `worker/*.mjs` processes against a real PostgreSQL server through a JWT-verifying REST stand-in: startup, `/healthz`, heartbeats, work done by each process, a hard kill of the automation worker in the middle of 40 runs followed by a restart (exactly 40 runs and 40 tasks, none duplicated), forged/expired/wrong-role tokens, token renewal without restart, the service-role fallback warning, a stopped worker flagged as stale, and the uptime endpoint. Retry back-off, dead-lettering and at-most-once delivery are covered by `tests/reliability.test.mjs`.

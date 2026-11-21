@@ -1,0 +1,41 @@
+# Security audit (Task 16)
+
+Method: automated catalog audit of the live database objects on a real PostgreSQL server with the Supabase default grants emulated; hostile-user tests through the real functions; real multi-connection concurrency; inspection of every `SECURITY DEFINER` function; dependency, header and history scans. Everything below is reproducible: `npm run test:security`, `test:concurrency`, `test:workers`, `test:perf`, `npm test`, `npm run test:browser`.
+
+**Scope limits (be honest about what this is):** run against a local PostgreSQL 18 engine and the application code, not against a hosted Supabase project (none was authorized). Supabase Auth settings, cookie flags set by the auth library, e-mail delivery, platform rate limits and the hosted PostgreSQL 15/17 behaviour must be confirmed on staging. No penetration test of the deployed app was performed.
+
+## Findings (all fixed unless marked OPEN)
+| ID | Severity | Finding | Fix |
+|---|---|---|---|
+| F1 | **Medium** (financial correctness) | `billing_post_payment` looked up the idempotency key / provider reference *before* locking the invoice. Ten simultaneous retries with one key produced one payment (money was never doubled) but nine callers received an over-payment error instead of the original payment, so clients could mis-record a failure. Found by `test:concurrency`. | 0021 re-checks after the lock. Test fails without the fix. |
+| F2 | **Medium** (integrity) | A payments connection could be set *Connected* by an administrator through the generic status function with no evidence that the gateway had ever sent a verified notification: a "success" state without trusted proof. | 0024 trigger: Connected requires a received, signature-verified notification; the new UI additionally locks the Activate button until then. |
+| F3 | **Medium** (availability) | `global_search` evaluated row-security functions for every lead/task before filtering: 2.0 s at 20,000 leads and 4.1 s with 60,000 tasks, per keystroke-search by any member, trivially abusable and a poor experience. | 0026 candidate pre-filter inside a membership-checked definer function; the same views and RLS still decide visibility. 33 ms. Proven identical to the original for 265 role/query/type combinations. |
+| F4 | Low | Internal and trigger functions (`notif_enabled`, `notif_*_assigned`, `protect_*`) were executable by `anon`/`authenticated` by Supabase's default grants. `notif_enabled` returned any member's notification preferences to a caller who knew both ids. | 0022 revokes. A test now enforces the exact anonymous API surface. |
+| F5 | Low | No HTTP security headers: the app could be framed (clickjacking); no `nosniff`, referrer or permissions policy. | `next.config.ts` headers (frame-ancestors none, nosniff, referrer policy, camera/geolocation/payment off, microphone self for voice). Browser test. |
+| F6 | Low (operational) | The worker token expires silently; workers would stop. | Heartbeats report `token_days_left`; Operations warns < 30 days; renewal without restart (`WORKER_JWT_FILE`); uptime endpoint reports stale workers. |
+| F7 | Low (operational) | The encryption key could not be rotated without making stored credentials unreadable. | Versioned keyring, re-key tool (compare-and-swap), audit trail, tested procedure (`docs/KEY_ROTATION.md`). |
+| F8 | Info | `home_summary` ran five full scans through row security (1.4 s for an extreme user). | 0026 folds them into two scans; documented scaling limit below. |
+
+No critical or high-severity vulnerability was found.
+
+## Verified safe (tested, not assumed)
+- **Definer functions:** every `SECURITY DEFINER` function in `public` pins `search_path` (checked against the live catalog); every one that is callable without an authorization helper is on an explicit allowlist (the five secret-gated entry points).
+- **Anonymous API:** exactly `integration_ingest_form`, `integration_receive_webhook`, `payment_gateway_connection`, `payment_gateway_receive`, `worker_health_check`, each gated by a connection secret or the gateway secret (stored as a hash). No invoker function is callable anonymously.
+- **Row-level security:** enabled on all 71 tables; `anon` holds no table privileges; `authenticated` holds no INSERT/UPDATE/DELETE/TRUNCATE anywhere (writes go through functions that re-check role and organization); all 6 views are `security_invoker`.
+- **Tenant isolation:** a signed-in stranger was tested against **every organization-scoped table and view** (≈70, with ≥ 20 populated): zero rows readable; INSERT/UPDATE/DELETE refused; 17 sensitive functions called with the victim's real ids all fail with a clean authorization error and create nothing.
+- **Field-level privacy:** `contacts.phone/email` are not readable by any signed-in role, even the owner, except through functions that apply visibility rules (other organization → null; unrelated employee → hidden). `ciphertext`, `secret_hash`, `token_hash` are unreadable by browsers.
+- **Invoices/payments:** unrelated employees see no invoice or payment rows or snapshots; owners/admins/managers only; the PDF route is covered in the staging suite.
+- **Invitations:** long random tokens (≥ 32 characters, unique), only SHA-256 hashes stored, single use, expiry, revocation, bound to one e-mail, owners-only for admin invites, concurrent accept joins exactly once.
+- **Webhooks:** Meta/WhatsApp (`X-Hub-Signature-256`) and Razorpay (HMAC over the raw body) verified before any work, constant-time compare, replays idempotent by event id and provider payment id (tested with 10 simultaneous duplicates and 4 workers); unsigned or mis-signed traffic never reaches the database.
+- **Credential storage:** AES-256-GCM, random IV per value, key only in the environment; the audit trail and logs record ids and key versions only; the web app never holds the service-role key (workers use a restricted role; the fallback key is logged as a warning).
+- **Sensitive data exposure:** a canary phone, e-mail and note were pushed through lead creation, forms, automations, AI tools, heartbeats and maintenance, then **every text/JSON column of every table was scanned**: the canary exists only in `contacts`, `leads`, `invoices` (the customer snapshot). Not in audit events, integration errors, outbound message log, worker heartbeats, notifications, AI usage/tool-call/message tables.
+- **Dependencies:** `npm audit --omit=dev`: 0 vulnerabilities. **Secrets:** no key patterns in the tree or any commit; `.env*` and generated directories are not tracked.
+
+## Residual risks and OPEN items
+1. **OPEN – needs staging:** Supabase Auth configuration (JWT expiry, refresh-token rotation, redirect allowlist, e-mail rate limits, bot protection), session cookie flags and logout behaviour, and the default-grant behaviour on the hosted project (the five catalog queries in `docs/STAGING.md` prove it).
+2. **OPEN – accepted for pilot:** no script-src CSP (a nonce-based CSP would need framework work); HSTS depends on the hosting platform.
+3. **Search trade-off:** results are drawn from the first 2,000 candidates per type (ordered like the results). A very broad query by a person who can see few rows may miss matches that sort after 2,000 rows they cannot see. Narrower queries are unaffected.
+4. **Scaling limit:** every visible row costs ≈ 25–30 µs in row security. Counting screens (home summary, lead totals) grow linearly: ≈ 1.3 s for an extreme user in a 20,000-lead workspace; fine for the pilot. At ≥ 50,000 leads per workspace plan summary counters.
+5. **AI:** the assistant only proposes changes that a person confirms, tools return masked contact data, and budgets are reserved atomically (tested, 20 simultaneous reservations fit exactly the limit). Lead free text is untrusted input to the model; the confirmation step is the control. Not re-audited against live models.
+6. **PostgreSQL version:** rehearsed on 18.x; Supabase hosts 15/17. No version-specific features are used, but confirm on staging.
+7. **Payment provider logic** (Razorpay) and WhatsApp/Meta flows are verified against documentation and mocks, never against live accounts.

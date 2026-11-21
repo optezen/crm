@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 const require = createRequire(import.meta.url); const AXE = require.resolve('axe-core/axe.min.js'); const BASE = process.env.BASE_URL;
 let browser; before(async () => { browser = await chromium.launch({ channel: 'chromium' }); }); after(async () => { await browser?.close(); });
 const open = async (path, viewport = { width: 1280, height: 800 }, o = {}) => { const ctx = await browser.newContext({ viewport, hasTouch: !!o.touch, isMobile: !!o.touch }); const page = await ctx.newPage(); await page.goto(BASE + path); return { page, close: () => ctx.close() }; };
-const axe = async page => { await page.waitForFunction(() => document.title.length > 0); await page.addScriptTag({ path: AXE }); const r = await page.evaluate(() => globalThis.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] })); return r.violations.filter(v => ['serious', 'critical'].includes(v.impact)).map(v => `${v.id}: ${v.nodes.slice(0, 2).map(n => n.target.join(' ')).join(' | ')}`); };
+const axe = async page => { await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForFunction(() => !!document.querySelector('head > title')?.textContent); await page.addScriptTag({ path: AXE }); const r = await page.evaluate(() => globalThis.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] })); return r.violations.filter(v => ['serious', 'critical'].includes(v.impact)).map(v => `${v.id}: ${v.nodes.slice(0, 2).map(n => n.target.join(' ')).join(' | ')}`); };
 const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 test('[browser] login page: labelled field, no serious accessibility violations, no horizontal scroll on a phone', async () => {
@@ -119,4 +119,11 @@ test('[browser][fixture data] payment gateway connection: setup steps in order, 
   await p.goto(BASE + '/ux-fixtures/payments?state=active'); assert.ok(await p.getByText('Connected', { exact: true }).isVisible()); assert.equal(await p.getByRole('button', { name: 'Activate payments' }).count(), 0); assert.ok(await p.getByRole('button', { name: 'Disconnect' }).isVisible());
   await p.goto(BASE + '/ux-fixtures/payments?state=missing'); assert.ok(await p.getByRole('alert').filter({ hasText: 'INTEGRATION_GATEWAY_SECRET' }).isVisible()); assert.ok(await p.getByRole('button', { name: 'Connect Razorpay' }).isDisabled());
   await p.setViewportSize({ width: 390, height: 844 }); await p.goto(BASE + '/ux-fixtures/payments'); assert.ok((await overflow(p)) <= 0, 'no horizontal scroll on a phone'); assert.deepEqual(await axe(p), []); await ctx.close();
+});
+
+test('[browser] every page carries the security headers: no framing, no sniffing, restricted browser features, and a framed page is refused', async () => {
+  const ctx = await browser.newContext(); const p = await ctx.newPage(); const r = await p.goto(BASE + '/login'); const h = r.headers();
+  assert.equal(h['x-frame-options'], 'DENY'); assert.equal(h['x-content-type-options'], 'nosniff'); assert.equal(h['referrer-policy'], 'strict-origin-when-cross-origin'); assert.match(h['content-security-policy'], /frame-ancestors 'none'/); assert.match(h['content-security-policy'], /object-src 'none'/); assert.match(h['permissions-policy'], /camera=\(\)/); assert.match(h['permissions-policy'], /microphone=\(self\)/);
+  const api = await fetch(BASE + '/api/health'); assert.equal(api.headers.get('x-frame-options'), 'DENY', 'API responses too');
+  await p.setContent(`<iframe id="f" src="${BASE}/login" width="400" height="300"></iframe>`); await p.waitForTimeout(1500); const framed = await p.frame({ url: /\/login/ }); const body = framed ? await framed.evaluate(() => document.body?.innerText ?? '').catch(() => '') : ''; assert.ok(!/Sign in|Email/i.test(body), 'the login page does not render inside a frame'); await ctx.close();
 });

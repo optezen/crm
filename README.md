@@ -71,3 +71,6 @@ Voice, streaming, multi-step plans, confirmed lead operations and conversational
 ## User experience
 
 Home, follow-ups, search, notifications, invitations and the Builder overview: see [docs/USER_EXPERIENCE.md](docs/USER_EXPERIENCE.md).
+
+## Tests
+`npm test` (offline, PGlite) · `npm run test:browser` (Playwright, needs `npm run build`) · **real-PostgreSQL suites** (embedded PostgreSQL, no Docker): `npm run test:concurrency` (races across genuine connections), `test:security` (catalog, isolation, privacy, invitations, PII scan), `test:workers` (the real worker processes, token/key rotation, monitoring), `test:perf` (large data, query plans, backup restore, crash recovery) · live suites against a **staging** Supabase project only: `npm run test:integration`, `npm run test:e2e:staging` (see [docs/STAGING.md](docs/STAGING.md)). Release, rollback and recovery: [docs/RELEASE.md](docs/RELEASE.md). Security audit: [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).

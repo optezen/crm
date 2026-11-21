@@ -7,8 +7,14 @@ export const URL_ = process.env.SUPABASE_TEST_URL, ANON = process.env.SUPABASE_T
 export const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 export const configured = Boolean(URL_ && ANON && SERVICE);
 const isLocal = configured && /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(URL_);
-export const guard = !configured ? 'SUPABASE_TEST_URL / _ANON_KEY / _SERVICE_ROLE_KEY not set'
-  : !isLocal && process.env.SUPABASE_TEST_ALLOW_REMOTE !== '1' ? 'refusing to run against a non-local project without SUPABASE_TEST_ALLOW_REMOTE=1' : null;
+// A remote project is accepted ONLY when it is explicitly named as the staging project: SUPABASE_TEST_STAGING_REF must equal the project ref in the URL (https://<ref>.supabase.co),
+// and it must differ from SUPABASE_PRODUCTION_REF when that is set. Merely setting ALLOW_REMOTE is not enough, so a copied production URL can never run these destructive tests.
+const refOf = u => /^https:\/\/([a-z0-9]+)\.supabase\.(co|in)(\/|$)/.exec(u ?? '')?.[1];
+const remoteProblem = () => process.env.SUPABASE_TEST_ALLOW_REMOTE !== '1' ? 'refusing to run against a non-local project without SUPABASE_TEST_ALLOW_REMOTE=1'
+  : !process.env.SUPABASE_TEST_STAGING_REF ? 'a remote project must be named: set SUPABASE_TEST_STAGING_REF to the staging project ref (see docs/STAGING.md)'
+  : refOf(URL_) !== process.env.SUPABASE_TEST_STAGING_REF ? `the URL's project ref (${refOf(URL_) ?? 'unrecognised'}) is not SUPABASE_TEST_STAGING_REF`
+  : process.env.SUPABASE_PRODUCTION_REF && process.env.SUPABASE_PRODUCTION_REF === refOf(URL_) ? 'this is the PRODUCTION project: refusing' : null;
+export const guard = !configured ? 'SUPABASE_TEST_URL / _ANON_KEY / _SERVICE_ROLE_KEY not set' : !isLocal ? remoteProblem() : null;
 
 const opts = { auth: { persistSession: false, autoRefreshToken: false } };
 export const admin = () => createClient(URL_, SERVICE, opts); // ONLY for creating/deleting fixtures; never used to assert behaviour

@@ -12,7 +12,7 @@ import { startPg, uid, EMP, EMP2, MGR, ADM } from './pgenv.mjs';
 
 let env, rpc, q, asUser; const cleanup = [];
 before(async () => { env = await startPg({ keep: true }); ({ rpc, q, asUser } = env); });
-after(async () => { for (const c of cleanup) await c().catch(() => {}); await env?.stop({ remove: true }); });
+after(async () => { for (const c of cleanup) await c().catch(() => {}); await env?.stop({ remove: true }).catch(() => {}); });
 
 const ok = r => { assert.equal(r.error, null, r.error?.message); return r.data; };
 const CORE = [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }];

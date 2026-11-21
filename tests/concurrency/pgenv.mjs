@@ -45,6 +45,6 @@ export async function startPg({ migrations = true, attach, keep = false } = {}) 
   /** Run a read as a signed-in user (for table functions and views). */
   const asUser = async (user, sql, params) => { const c = await pool.connect(); try { await c.query('begin'); await c.query('set local role authenticated'); await c.query(`select set_config('request.jwt.claim.sub', $1, true)`, [user]); const r = await c.query(sql, params); await c.query('commit'); return r.rows; } catch (e) { await c.query('rollback').catch(() => {}); throw e; } finally { c.release(); } };
   const q = async (sql, params) => (await pool.query(sql, params)).rows; // superuser: for assertions only
-  const stop = async ({ remove = !(keep || attach) } = {}) => { await pool.end().catch(() => {}); await server.stop().catch(() => {}); if (remove) rmSync(dir, { recursive: true, force: true }); };
+  const stop = async ({ remove = !(keep || attach) } = {}) => { await pool.end().catch(() => {}); await Promise.race([server.stop().catch(() => {}), new Promise(r => setTimeout(r, 10000))]); /* a server that was killed on purpose may never report its exit: do not wait for it */ if (remove) rmSync(dir, { recursive: true, force: true }); };
   return { rpc, q, asUser, pool, stop, port, conf, server, dir };
 }

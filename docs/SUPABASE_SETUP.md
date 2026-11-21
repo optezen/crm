@@ -118,3 +118,7 @@ Apply `0006_custom_modules.sql` **before** deploying the app version that has cu
 - Web app: no new required variables. Payments webhooks reuse `INTEGRATION_GATEWAY_SECRET` and `INTEGRATION_ENCRYPTION_KEY`.
 - Workers: replace `SUPABASE_SERVICE_ROLE_KEY` with `WORKER_JWT` + `SUPABASE_ANON_KEY` (see `docs/WORKERS.md`). Deploy `fly.worker.toml` (three process groups); the old `worker/fly.toml` was removed.
 - Order: apply the migration, then deploy the web app, then the workers. Rolling back the web app alone is safe; rolling back the workers to the old image would bypass the consent gate, so do not.
+
+## Deploying 0021–0026 (hardening and operations)
+
+Apply after 0020, in order, **on staging first** (`docs/STAGING.md`); full compatibility table and rollback in `docs/RELEASE.md`. All are small and independent: 0021 payment idempotency race fix, 0022 revokes internal function grants, 0023 credential re-key function (worker/service role only), 0024 payments activation needs a verified notification, 0025 `worker_health_check` for uptime monitoring, 0026 search/home performance (same results, 30-60x faster on large workspaces). New optional web variable: `OPS_HEALTH_TOKEN`. New optional worker variable: `WORKER_JWT_FILE`.

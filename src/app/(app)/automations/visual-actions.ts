@@ -48,3 +48,16 @@ export async function publishVisualAction(id: string, enable: boolean, proposalI
   revalidatePath('/automations', 'layout');
   return { ok: true, message: enable ? 'Published and enabled.' : 'Published (not enabled).' };
 }
+
+/** Saves an UNFINISHED canvas (any graph, valid or not) apart from drafts. It can never be published or run: to go live it must be completed, saved as a normal draft and published. */
+export async function saveWipAction(input: { id: string | null; workflowId: string | null; name: string; graph: unknown }): Promise<{ ok: true; id: string; message: string } | { ok: false; error: string }> {
+  const c = await ctx(); if ('error' in c) return { ok: false, error: c.error };
+  if (input.id !== null && !uuid(input.id)) return { ok: false, error: 'Unfinished workflow not found.' }; if (input.workflowId !== null && !uuid(input.workflowId)) return { ok: false, error: 'Automation not found.' };
+  const r = await c.db.rpc('automation_wip_save', { p_org: c.org, p_id: input.id, p_workflow: input.workflowId, p_name: String(input.name ?? '').slice(0, 80) || 'Unfinished workflow', p_graph: input.graph });
+  if (r.error) return { ok: false, error: ['22023', '42501', 'P0002'].includes(r.error.code ?? '') ? r.error.message : 'Something went wrong. Please try again.' };
+  revalidatePath('/automations', 'layout'); return { ok: true, id: r.data as string, message: 'Unfinished work saved. It is not an automation yet and cannot run or be published.' };
+}
+export async function deleteWipAction(id: string): Promise<{ ok: boolean }> {
+  const c = await ctx(); if ('error' in c || !uuid(id)) return { ok: false };
+  const r = await c.db.rpc('automation_wip_delete', { p_org: c.org, p_id: id }); revalidatePath('/automations', 'layout'); return { ok: !r.error };
+}

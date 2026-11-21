@@ -8,7 +8,7 @@ import { runQuery } from '../../../lib/analytics/service';
 const UUID = /^[0-9a-f-]{36}$/i;
 export type DashResult = { ok: true; id: string; version: number } | { ok: false; error: string };
 // The organization comes from the user's membership. dashboard_save validates every widget query with the SAME grammar check that runs it, under THIS user's permissions.
-export async function saveDashboardAction(id: string | null, v: { name: string; description: string; visibility: 'personal' | 'organization'; widgets: Widget[]; version: number | null }, proposalId: string | null = null): Promise<DashResult> {
+export async function saveDashboardAction(id: string | null, v: { name: string; description: string; visibility: 'personal' | 'organization'; widgets: Widget[]; version: number | null }, proposalId: string | null = null, planRef: { plan: string; step: string } | null = null): Promise<DashResult> {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return { ok: false, error: 'Your session has ended. Please sign in again.' };
   if (id !== null && !UUID.test(id)) return { ok: false, error: 'Dashboard not found.' };
   const widgets = (Array.isArray(v.widgets) ? v.widgets : []).map(w => ({ type: w.type, title: w.title, query: w.query, w: w.w, h: w.h, ...(w.options && Object.keys(w.options).length ? { options: w.options } : {}) }));
@@ -17,6 +17,8 @@ export async function saveDashboardAction(id: string | null, v: { name: string; 
   const r = data as { id: string; version: number };
   // Saved from an AI proposal the user reviewed and edited: record that the proposal was applied (its status machine allows pending -> published once).
   if (proposalId && UUID.test(proposalId)) await (await supabaseServer()).rpc('ai_set_proposal_status', { p_org: s.organizationId, p_proposal: proposalId, p_status: 'published', p_result: { dashboard_id: r.id, edited_visually: true }, p_workflow: null });
+  // saved from a multi-step plan the user reviewed and edited: the step is now done (the plan's publish phase skips finished steps)
+  if (planRef && UUID.test(planRef.plan) && /^[a-z][a-z0-9_]{0,29}$/.test(planRef.step)) await (await supabaseServer()).rpc('ai_plan_step_set', { p_org: s.organizationId, p_plan: planRef.plan, p_step: planRef.step, p_state: 'applied', p_result: { dashboard_id: r.id, edited_visually: true }, p_error: null });
   revalidatePath('/dashboards', 'layout'); return { ok: true, id: r.id, version: r.version };
 }
 export async function deleteDashboardAction(id: string): Promise<{ ok: boolean; error?: string }> {

@@ -10,7 +10,7 @@ import { Notice } from '../../../../components/ui/Notice';
 import { StudioNav } from '../../../../components/studio/StudioNav';
 import type { Widget } from '../../../../lib/analytics/types';
 
-export default async function DashboardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ edit?: string; proposal?: string }> }) {
+export default async function DashboardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ edit?: string; proposal?: string; plan?: string; step?: string }> }) {
   const { id } = await params; const sp = await searchParams; const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
   const db = await supabaseServer(); const canShare = ['owner', 'admin', 'manager'].includes(s.role); const catalog = await loadCatalog(db, s.organizationId);
   if (!catalog) return <Notice title="Dashboards unavailable">The data catalog could not be loaded. Please try again.</Notice>;
@@ -24,7 +24,16 @@ export default async function DashboardPage({ params, searchParams }: { params: 
       else { proposalId = sp.proposal; initial = { name: String(p.payload.name ?? p.title), description: p.payload.description ?? '', visibility: p.payload.visibility === 'organization' && canShare ? 'organization' : 'personal', version: null, widgets: Array.isArray(p.payload.widgets) ? p.payload.widgets : [] };
         banner = 'Proposed by Optizen AI. Nothing is saved yet: rearrange, resize and edit the widgets, then save. Each widget is checked against the data you are allowed to see when you save.'; }
     }
-    return <div className="stack"><StudioNav current="dashboards" /><div className="top"><div><span className="eyebrow">Optizen Dashboards</span><h1>New dashboard</h1></div></div><DashboardEditor id={null} initial={initial} catalog={catalog} canShare={canShare} proposalId={proposalId} banner={banner} stages={s.config.pipeline.stages} /></div>;
+    let planRef: { plan: string; step: string } | null = null;
+    if (sp.plan && sp.step && /^[0-9a-f-]{36}$/i.test(sp.plan) && /^[a-z][a-z0-9_]{0,29}$/.test(sp.step)) {
+      const pr = await db.rpc('ai_plan_get', { p_org: s.organizationId, p_plan: sp.plan }); const pl = pr.data as { plan: { status: string }; steps: { key: string; kind: string; decision: string; state: string; args: { name?: string; description?: string | null; visibility?: string; widgets?: Widget[] } }[] } | null;
+      const st = pl?.steps.find(x => x.key === sp.step);
+      if (pr.error || !pl || !st || st.kind !== 'dashboard') banner = 'The plan step was not found, so this is a blank dashboard.';
+      else if (st.state === 'applied') banner = 'That dashboard step was already applied.';
+      else { planRef = { plan: sp.plan, step: sp.step }; initial = { name: String(st.args.name ?? ''), description: st.args.description ?? '', visibility: st.args.visibility === 'organization' && canShare ? 'organization' : 'personal', version: null, widgets: Array.isArray(st.args.widgets) ? st.args.widgets : [] };
+        banner = 'From a multi-step plan. Its modules must be published first (the widgets read them). Edit freely, then save: the plan will treat this step as done.'; }
+    }
+    return <div className="stack"><StudioNav current="dashboards" /><div className="top"><div><span className="eyebrow">Optizen Dashboards</span><h1>New dashboard</h1></div></div><DashboardEditor id={null} initial={initial} catalog={catalog} canShare={canShare} proposalId={proposalId} banner={banner} stages={s.config.pipeline.stages} planRef={planRef} /></div>;
   }
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const d = await loadDashboard(db, s.organizationId, id); if (!d) notFound();

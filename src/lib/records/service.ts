@@ -17,7 +17,7 @@ const toRow = (r: Row): RecordRow => ({ id: r.id, objectKey: r.object_key, data:
 export async function listRecords(ctx: RecordsContext, moduleKey: string, p: RecordListParams): Promise<Result<{ rows: RecordRow[]; total: number; page: number; pageCount: number }>> {
   const m = findModule(ctx.config, moduleKey); if (!m) return fail('Module not found.');
   const from = (p.page - 1) * RECORD_PAGE_SIZE;
-  let q = ctx.db.from('records').select('*', { count: 'exact' }).eq('organization_id', ctx.organizationId).eq('object_key', m.object.key);
+  let q = ctx.db.from('records_view').select('*', { count: 'exact' }).eq('organization_id', ctx.organizationId).eq('object_key', m.object.key);
   for (const [key, v] of Object.entries(p.filters)) {
     const f = m.object.fields.find(x => x.key === key); if (!f) continue; // keys come from the configuration, never from the request
     q = f.kind === 'yes_no' ? q.filter(`data->>${key}`, 'eq', v === 'yes' ? 'true' : 'false') : q.filter(`data->>${key}`, 'eq', v);
@@ -31,7 +31,7 @@ export async function listRecords(ctx: RecordsContext, moduleKey: string, p: Rec
 
 export async function getRecord(ctx: RecordsContext, moduleKey: string, id: string): Promise<Result<RecordRow>> {
   if (!UUID.test(id) || !findModule(ctx.config, moduleKey)) return fail('Record not found.');
-  const { data, error } = await ctx.db.from('records').select('*').eq('organization_id', ctx.organizationId).eq('object_key', moduleKey).eq('id', id).maybeSingle();
+  const { data, error } = await ctx.db.from('records_view').select('*').eq('organization_id', ctx.organizationId).eq('object_key', moduleKey).eq('id', id).maybeSingle();
   if (error) return dbError(error);
   return data ? { ok: true, value: toRow(data as Row) } : fail('Record not found.');
 }

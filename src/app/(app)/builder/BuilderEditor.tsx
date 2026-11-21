@@ -8,7 +8,7 @@ import { Card } from '../../../components/ui/Card';
 import { FieldInput } from '../../../components/ui/FieldInput';
 import { LocalTime } from '../../../components/ui/LocalTime';
 import { OperationsSettings } from './OperationsSettings';
-import { aiDraftBuilderAction, discardAction, publishAction, restoreAction, saveDraftAction, type BuilderResult } from './actions';
+import { aiDraftBuilderAction, discardAction, publishAction, restoreAction, saveDraftAction, saveVisualConfigAction, type BuilderResult } from './actions';
 
 const isCore = (key: string) => CORE_MODULES.some(c => c.key === key);
 const norm = (c: WorkspaceConfig) => { const v = validateConfig(c); return v.ok ? JSON.stringify(v.value) : JSON.stringify(c); };
@@ -40,10 +40,11 @@ export function FieldsEditor({ obj, pub, onChange }: { obj: ObjectConfig; pub?: 
   function setObjField(i: number, k: FieldKind) { onChange({ ...obj, fields: obj.fields.map((f, j) => (j === i ? clean({ ...f, kind: k }) : f)) }); }
 }
 
-export function BuilderEditor({ published, draft, aiAvailable, versions }: { published: WorkspaceConfig; draft: WorkspaceConfig | null; aiAvailable: boolean; versions: VersionRow[] }) {
+export function BuilderEditor({ published, draft, aiAvailable, versions, token: initToken = null, publishedRev: initRev = null }: { published: WorkspaceConfig; draft: WorkspaceConfig | null; aiAvailable: boolean; versions: VersionRow[]; token?: string | null; publishedRev?: number | null }) {
   const router = useRouter();
   const [cfg, setCfg] = useState<WorkspaceConfig>(draft ?? published);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string }>();
+  const [msg, setMsg] = useState<{ ok: boolean; text: string; conflict?: boolean }>();
+  const [token, setToken] = useState(initToken), [rev, setRev] = useState(initRev);
   const [pending, start] = useTransition();
   const [newModule, setNewModule] = useState(''), [newStage, setNewStage] = useState(''), [aiText, setAiText] = useState(published.description ?? '');
 
@@ -66,6 +67,13 @@ export function BuilderEditor({ published, draft, aiAvailable, versions }: { pub
   };
   const move = (i: number, d: number) => { const s = [...cfg.pipeline.stages]; const j = i + d; if (j < 0 || j >= s.length) return; [s[i], s[j]] = [s[j]!, s[i]!]; set({ pipeline: { stages: s } }); };
   const run = (fn: () => Promise<BuilderResult>, after?: () => void) => start(async () => { const r = await fn(); setMsg({ ok: r.ok, text: r.ok ? r.message : r.error }); if (r.ok) { after?.(); router.refresh(); } });
+  // Saved with a conflict check: refused when the draft or the live version changed since this page loaded (another tab, another admin, an AI plan), and nothing is overwritten.
+  const saveChecked = () => start(async () => {
+    if (!valid.ok) return;
+    if (token === null) { const r = await saveDraftAction(valid.value); setMsg({ ok: r.ok, text: r.ok ? r.message : r.error }); if (r.ok) router.refresh(); return; }
+    const r = await saveVisualConfigAction(valid.value, token, rev);
+    if (r.ok) { setToken(r.token); setRev(r.published); setMsg({ ok: true, text: r.message }); router.refresh(); } else setMsg({ ok: false, text: r.error, conflict: r.conflict });
+  });
   const askAi = () => start(async () => {
     const r = await aiDraftBuilderAction(aiText);
     if (!r.ok) return setMsg({ ok: false, text: r.error });
@@ -121,11 +129,11 @@ export function BuilderEditor({ published, draft, aiAvailable, versions }: { pub
           : <div><strong>Changes compared with the live version</strong><ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>{changes.map(c => <li key={c}>{c}</li>)}</ul></div>)}
         {dirty && <p className="muted">You have unsaved edits. Save the draft to review it and enable publishing.</p>}
         <div className="row">
-          <button type="button" className="btn primary" disabled={pending || !valid.ok || !dirty} onClick={() => run(() => saveDraftAction(valid.ok ? valid.value : cfg))}>Save draft</button>
+          <button type="button" className="btn primary" disabled={pending || !valid.ok || !dirty} onClick={saveChecked}>Save draft</button>
           <button type="button" className="btn" disabled={pending || !canPublish} onClick={() => { if (confirm('Publish this version? It becomes the live workspace configuration for everyone.')) run(publishAction, () => setMsg(undefined)); }}>Publish draft</button>
           <button type="button" className="btn" disabled={pending || (!dirty && !draft)} onClick={() => { if (draft) run(discardAction, () => setCfg(published)); else setCfg(published); }}>{draft ? 'Discard draft' : 'Reset edits'}</button>
         </div>
-        {msg && <p role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'ok' : 'err'}>{msg.text}</p>}
+        {msg && <p role={msg.ok ? 'status' : 'alert'} className={msg.ok ? 'ok' : 'err'}>{msg.text} {msg.conflict && <button type="button" className="btn" onClick={() => location.reload()}>Reload latest</button>}</p>}
       </div>
     </Card>
 

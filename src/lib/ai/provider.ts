@@ -7,10 +7,12 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string | (TextB
 export type ToolSpec = { name: string; description: string; input_schema: Record<string, unknown> };
 export type CompleteRequest = { system: string; messages: ChatMessage[]; tools: ToolSpec[]; maxTokens: number; toolChoice?: { name: string }; timeoutMs?: number };
 export type CompleteResponse = { content: (TextBlock | ToolUseBlock)[]; stopReason: string; usage: { inputTokens: number; outputTokens: number } };
-export interface ModelProvider { readonly id: string; readonly model: string; complete(req: CompleteRequest): Promise<CompleteResponse> }
+/** Incremental output of a streamed call. Only ANSWER text is surfaced: tool inputs and any model-internal reasoning are never forwarded. */
+export type StreamEvent = { type: 'text'; text: string };
+export interface ModelProvider { readonly id: string; readonly model: string; complete(req: CompleteRequest & { signal?: AbortSignal }): Promise<CompleteResponse>; stream?(req: CompleteRequest & { signal?: AbortSignal }, onEvent: (e: StreamEvent) => void): Promise<CompleteResponse> }
 
 /** `unreachable`: network/timeout. `http`: non-2xx. `parse`: unreadable body. `auth`: bad key. `rate_limit`. `overloaded`: 5xx/529. */
-export type AiErrorKind = 'unreachable' | 'timeout' | 'http' | 'parse' | 'auth' | 'rate_limit' | 'overloaded' | 'invalid_output';
+export type AiErrorKind = 'cancelled' | 'unreachable' | 'timeout' | 'http' | 'parse' | 'auth' | 'rate_limit' | 'overloaded' | 'invalid_output';
 export class AiProviderError extends Error {
   readonly kind: AiErrorKind;
   readonly status?: number;

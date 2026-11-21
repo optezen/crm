@@ -7,7 +7,17 @@ import type { OpsModuleKey } from '../workspace/types.ts';
 import type { ObjectSchema } from './schema.ts';
 
 export type FieldSpec = { label: string; kind: string; required?: boolean; options?: string[]; currency?: string };
-export type Op = { op: 'add_module' | 'add_fields' | 'rename_module' | 'rename_field' | 'hide_field' | 'enable_module' | 'disable_module'; operations_module?: OpsModuleKey; module_label?: string; module_key?: string; fields?: FieldSpec[]; new_label?: string; field_key?: string };
+export type LayoutSpec = { order?: string[]; sections?: { title: string; fields: string[] }[]; help?: { field: string; text: string }[]; required?: { field: string; value: boolean }[] };
+export type PipelineSpec = { stages: string[]; settings?: { stage: string; color?: string; requires_assignee?: boolean; requires_summary?: boolean }[]; moves?: { from: string; to: string }[] };
+export type Op = { op: 'add_module' | 'add_fields' | 'rename_module' | 'rename_field' | 'hide_field' | 'enable_module' | 'disable_module' | 'set_layout' | 'set_pipeline'; operations_module?: OpsModuleKey; module_label?: string; module_key?: string; fields?: FieldSpec[]; new_label?: string; field_key?: string; layout?: LayoutSpec; pipeline?: PipelineSpec };
+
+/** Finds a field by its permanent key or (case-insensitively) by its label. Ambiguous or missing references are errors, never guesses. */
+export function resolveField(obj: ObjectConfig, ref: string): Result<FieldConfig> {
+  const r = ref.trim(); const byKey = obj.fields.find(f => f.key === r); if (byKey) return { ok: true, value: byKey };
+  const hits = obj.fields.filter(f => f.label.toLowerCase() === r.toLowerCase() || fieldSlug(r) === f.key);
+  if (hits.length === 1) return { ok: true, value: hits[0]! };
+  return { ok: false, error: hits.length ? `"${ref}" matches more than one field in "${obj.label}".` : `"${obj.label}" has no field "${ref}" (fields: ${obj.fields.filter(f => !f.archived).map(f => f.label).join(', ') || 'none'}).` };
+}
 
 const FIELD: ObjectSchema = { type: 'object', properties: {
   label: { type: 'string', minLength: 1, maxLength: 60, description: 'Field name shown to users, e.g. "Registration Number".' },
@@ -44,6 +54,15 @@ export function applyOps(base: WorkspaceConfig, live: WorkspaceConfig, ops: Op[]
       cfg.operations = { ...(cfg.operations ?? {}), [k]: { ...(cfg.operations?.[k] ?? OPS_DEFAULTS[k]), enabled: o.op === 'enable_module' } } as typeof cfg.operations; // other settings are kept; disabling never deletes data
       continue;
     }
+    if (o.op === 'set_pipeline') {
+      const sp = o.pipeline; if (!sp?.stages?.length) return { ok: false, error: `${at}: set_pipeline needs stages.` };
+      const stages = sp.stages.map(x => x.trim().replace(/\s+/g, ' '));
+      const settings: Record<string, { color?: string; requires_assignee?: boolean; requires_summary?: boolean }> = {};
+      for (const st of sp.settings ?? []) { const name = stages.find(x => x.toLowerCase() === st.stage.trim().toLowerCase()); if (!name) return { ok: false, error: `${at}: settings refer to the stage "${st.stage}", which is not in the pipeline.` }; settings[name] = { ...(st.color ? { color: st.color } : {}), ...(st.requires_assignee ? { requires_assignee: true } : {}), ...(st.requires_summary ? { requires_summary: true } : {}) }; }
+      const moves = (sp.moves ?? []).map(m => ({ from: m.from.trim(), to: stages.find(x => x.toLowerCase() === m.to.trim().toLowerCase()) ?? m.to.trim() }));
+      cfg.pipeline = { stages, ...(Object.keys(settings).length ? { stageSettings: settings as never } : {}), ...(moves.length ? { stageMoves: moves } : {}) };
+      continue;
+    }
     if (o.op === 'add_module') {
       const label = (o.module_label ?? '').trim().replace(/\s+/g, ' ');
       if (!label) return { ok: false, error: `${at}: add_module needs module_label.` };
@@ -60,6 +79,20 @@ export function applyOps(base: WorkspaceConfig, live: WorkspaceConfig, ops: Op[]
         if (!o.fields?.length) return { ok: false, error: `${at}: add_fields needs at least one field.` };
         const taken = obj.fields.map(f => f.key);
         for (const f of o.fields) { const r = cleanField(f, taken); if (!r.ok) return { ok: false, error: `${at}: ${r.error}` }; obj.fields.push(r.value); }
+      } else if (o.op === 'set_layout') {
+        const L = o.layout; if (!L) return { ok: false, error: `${at}: set_layout needs layout.` };
+        const res = (ref: string) => { const r = resolveField(obj, ref); if (!r.ok) throw new Error(`${at}: ${r.error}`); return r.value; };
+        try {
+          for (const h of L.help ?? []) { const f = res(h.field); const t = h.text.trim(); if (t) f.description = t; else delete f.description; }
+          for (const q of L.required ?? []) { const f = res(q.field); if (q.value) f.required = true; else delete f.required; }
+          let order: FieldConfig[] | null = null;
+          if (L.sections?.length) {
+            const seen = new Set<string>(); const front: FieldConfig[] = [];
+            for (const sec of L.sections) for (const ref of sec.fields) { const f = res(ref); if (seen.has(f.key)) throw new Error(`${at}: "${f.label}" is placed in more than one section.`); seen.add(f.key); f.section = sec.title.trim().replace(/\s+/g, ' '); front.push(f); }
+            order = [...front, ...obj.fields.filter(f => !seen.has(f.key))];
+          } else if (L.order?.length) { const seen = new Set<string>(); const front = L.order.map(res).filter(f => !seen.has(f.key) && seen.add(f.key)); order = [...front, ...obj.fields.filter(f => !seen.has(f.key))]; }
+          if (order) obj.fields = order;
+        } catch (e) { return { ok: false, error: (e as Error).message }; }
       } else if (o.op === 'rename_module') {
         const nl = (o.new_label ?? '').trim().replace(/\s+/g, ' '); if (!nl) return { ok: false, error: `${at}: rename_module needs new_label.` };
         m.label = nl; obj.label = nl; // keys never change, so stored records and URLs are unaffected

@@ -29,7 +29,7 @@ const fails = (p, code, msg) => assert.rejects(p, e => (!code || e.code === code
 const publish = async (u, org, d) => { await rpc(u, 'save_workspace_draft', org, d); return rpc(u, 'publish_workspace_config', org); };
 const live = async org => (await db.query(`select definition from public.workspace_configuration_versions where organization_id=$1 and status='published'`, [org])).rows[0].definition;
 const create = (u, org, obj, data) => rpc(u, 'record_create', org, obj, data);
-const recs = (u, org, obj) => rows(u, 'select * from public.records where organization_id=$1 and object_key=$2 order by created_at, id', [org, obj]);
+const recs = (u, org, obj) => rows(u, 'select * from public.records_view where organization_id=$1 and object_key=$2 order by created_at, id', [org, obj]);
 let A, B, seq = 20;
 // A brand-new organization (own owner) with the standard team, so tests can reshape its configuration freely.
 async function fresh() {
@@ -59,7 +59,7 @@ test('ACCEPTANCE: owner creates Vehicles with Registration Number + Status and p
   assert.equal(await publish(OWN, A, def(vehicles())), 2);
   const id1 = await create(EMP, A, 'vehicles', { registration_number: 'MH12AB1234', status: 'Available' });
   // "new session": a fresh role switch re-reads from storage (a real logout/login is covered by the live integration test)
-  const [r] = await rows(EMP, 'select * from public.records where id=$1', [id1]);
+  const [r] = await rows(EMP, 'select * from public.records_view where id=$1', [id1]);
   assert.deepEqual(r.data, { registration_number: 'MH12AB1234', status: 'Available' });
   assert.equal(r.created_by, EMP); assert.equal(r.config_revision, 2); assert.equal(r.object_key, 'vehicles');
   assert.equal((await rows(OWN, 'select 1 from public.records where id=$1', [id1])).length, 1, 'owner sees the employee record');
@@ -240,7 +240,7 @@ test('listing helpers: dropdown/checkbox filters and search work on stored data'
   const org = await rpc(OWN2, 'create_workspace', 'List Co', null, null, def()).then(String);
   await publish(OWN2, org, def(mod('Cars', [F('Model'), F('Status', 'choice', { options: ['Available', 'Sold'] }), F('Insured', 'yes_no'), F('Price', 'currency')])));
   for (const [m, s, i, p] of [['Swift', 'Available', true, 500000], ['Creta', 'Sold', false, 900000], ['Santro', 'Sold', true, 250000]]) await create(OWN2, org, 'cars', { model: m, status: s, insured: i, price: p });
-  const q = (sql, p = []) => rows(OWN2, `select data->>'model' m from public.records where organization_id='${org}' and object_key='cars' and ${sql} order by 1`, p).then(r => r.map(x => x.m));
+  const q = (sql, p = []) => rows(OWN2, `select data->>'model' m from public.records_view where organization_id='${org}' and object_key='cars' and ${sql} order by 1`, p).then(r => r.map(x => x.m));
   assert.deepEqual(await q(`data->>'status' = 'Sold'`), ['Creta', 'Santro']);
   assert.deepEqual(await q(`data->>'insured' = 'true'`), ['Santro', 'Swift']);
   assert.deepEqual(await q(`data @> '{"status":"Sold","insured":true}'`), ['Santro']);

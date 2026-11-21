@@ -42,6 +42,13 @@ export default async function AutomationPage({ params, searchParams }: { params:
       else { initial = v.value; banner = 'Proposed by Optizen AI. Nothing is saved yet: edit it on the canvas, then save the draft. Publishing is a separate step that needs your confirmation.'; }
     } else banner = 'This draft came from an Optizen AI proposal. Your edits here replace what the AI proposed; publishing is still your explicit action.';
   }
+  // an unfinished canvas this user saved earlier (private to them; RLS). Its shape is re-checked here; it is only ever loaded into the editor, never run.
+  let wip: { id: string; name: string; graph: { nodes: never[]; edges: never[] }; pos: Record<string, { x: number; y: number }> } | null = null;
+  if (typeof sp.wip === 'string' && /^[0-9a-f-]{36}$/i.test(sp.wip)) {
+    const r = await db.from('automation_wip').select('id, name, graph, workflow_id').eq('organization_id', s.organizationId).eq('id', sp.wip).maybeSingle();
+    const g = r.data?.graph as { nodes?: never[]; edges?: never[]; pos?: Record<string, { x: number; y: number }> } | undefined;
+    if (r.data && Array.isArray(g?.nodes) && Array.isArray(g?.edges) && (r.data.workflow_id ?? null) === (isNew ? null : id)) wip = { id: r.data.id, name: r.data.name, graph: { nodes: g!.nodes!, edges: g!.edges! }, pos: g?.pos ?? {} };
+  }
   const runs = w ? await listRuns(db, s.organizationId, w.id, 25) : null;
   const modules = s.config.objects.filter(o => s.config.modules.some(m => m.key === o.key && m.status === 'active') && o.key !== 'leads').map(o => ({ key: o.key, label: o.label, fields: o.fields.filter(f => !f.archived).map(f => ({ key: f.key, label: f.label })) }));
   const members = team.ok ? team.value.map(m => ({ id: m.userId, email: m.email, role: m.role, active: m.active })) : [];
@@ -51,7 +58,7 @@ export default async function AutomationPage({ params, searchParams }: { params:
       <p className="muted">{w?.enabled ? 'Enabled.' : w?.publishedVersion ? 'Published but disabled.' : 'Not live yet.'} <a href="/automations">All automations</a> · {sp.view === 'list' ? <Link href={`/automations/${id}`}>Visual canvas</Link> : <Link href={`/automations/${id}?view=list`}>List view</Link>}</p></div></div>
     {sp.view === 'list' ? <AutomationEditor key={hash(JSON.stringify([w, members.length]))} id={w?.id ?? null} name={w?.name ?? ''} enabled={w?.enabled ?? false} publishedVersion={w?.publishedVersion ?? null} draft={w?.draft ?? null} published={w?.published ?? null} modules={modules} members={members} /> : meta && !meta.ok ? <Notice title="Automation could not be loaded">{meta.error}</Notice>
       : <WorkflowStudio id={w?.id ?? null} name={w?.name ?? proposedName} enabled={w?.enabled ?? false} publishedVersion={w?.publishedVersion ?? null} draft={w?.draft ?? null} published={w?.published ?? null} initial={initial}
-          layout={meta && meta.ok ? meta.value.layout : null} token={w ? (meta && meta.ok ? meta.value.token : null) : null} modules={modules} members={members} proposalId={proposalId} banner={banner} />}
+          layout={meta && meta.ok ? meta.value.layout : null} token={w ? (meta && meta.ok ? meta.value.token : null) : null} modules={modules} members={members} proposalId={proposalId} banner={wip ? 'Unfinished work you saved earlier. It cannot run or be published until it is complete and saved as a draft.' : banner} wip={wip as never} />}
     {runs && <Card title="Execution history" description="Every run, with each step’s result. Failed runs can be retried.">{runs.ok ? <RunLog runs={runs.value} /> : <p className="err">{runs.error}</p>}</Card>}
   </div>;
 }

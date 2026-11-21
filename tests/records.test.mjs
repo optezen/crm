@@ -87,7 +87,7 @@ test('listRecords: always scoped to the membership organization + module; filter
   const r = await listRecords(ctx(db), 'vehicles', { page: 3, q: 'mh12', filters: { status: 'Sold', insured: 'yes', evil: 'x', 'data->>x': 'y' } });
   assert.equal(r.ok, true); assert.equal(r.value.pageCount, 3);
   const has = (...a) => calls.some(c => a.every((x, i) => c[i] === x));
-  assert.ok(has('from', 'records')); assert.ok(has('eq', 'organization_id', 'ORG-FROM-MEMBERSHIP')); assert.ok(has('eq', 'object_key', 'vehicles'));
+  assert.ok(has('from', 'records_view')); assert.ok(has('eq', 'organization_id', 'ORG-FROM-MEMBERSHIP')); assert.ok(has('eq', 'object_key', 'vehicles'));
   assert.ok(has('filter', 'data->>status', 'eq', 'Sold')); assert.ok(has('filter', 'data->>insured', 'eq', 'true'));
   assert.equal(calls.filter(c => c[0] === 'filter').length, 2, 'unknown filter keys are dropped, never forwarded');
   assert.ok(has('ilike', 'search_text', '%mh12%')); assert.ok(has('range', 50, 74));

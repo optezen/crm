@@ -9,6 +9,7 @@ import { SetupNotice } from '../../components/SetupNotice';
 import { Notice } from '../../components/ui/Notice';
 import { signOut } from './actions';
 import { AiPanel } from '../../components/AiPanel';
+import { speechAvailable } from '../../lib/ai/speech';
 import { aiAvailable } from '../../lib/ai/anthropic';
 import { unreadCount } from '../../lib/automation/service';
 import { supabaseServer } from '../../lib/supabase/server';
@@ -35,11 +36,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <span className="eyebrow">Insights</span><NavLink href="/dashboards">Dashboards</NavLink><NavLink href="/reports">Reports</NavLink>
         {planned.length > 0 && <span className="eyebrow">Coming later</span>}
         {planned.map(m => <span key={m.key} className="planned">{m.label}<span className="tag">Planned</span></span>)}
-        {canBuild(s.role) && <><span className="eyebrow">Configure</span><NavLink href="/builder">Builder</NavLink><NavLink href="/automations">Automations</NavLink><NavLink href="/builder/connections">Connections</NavLink><NavLink href="/team">Team</NavLink></>}
+        {canBuild(s.role) && <><span className="eyebrow">Configure</span><NavLink href="/builder">Builder</NavLink><NavLink href="/automations">Automations</NavLink>{s.role === 'owner' && <NavLink href="/settings/ai">AI settings</NavLink>}<NavLink href="/builder/connections">Connections</NavLink><NavLink href="/team">Team</NavLink></>}
         <span className="eyebrow">You</span><NavLink href="/notifications">Notifications{unread > 0 ? ` (${unread})` : ''}</NavLink>
       </nav>
       <form action={signOut} style={{ marginTop: 'auto' }}><button className="btn" style={{ width: '100%' }}>Sign out</button></form></aside>
-    <main className="main"><div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}><AiPanel available={aiAvailable()} role={s.role} /><CommandSearch items={items} /></div>{children}</main>
+    <main className="main"><div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}><AiPanel available={aiAvailable()} role={s.role} voice={speechAvailable()} /><CommandSearch items={items} /></div>{children}</main>
   </div>;
 }
 

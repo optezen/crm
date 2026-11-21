@@ -6,9 +6,9 @@ import { validateConfig } from '../workspace/schema.ts';
 import { validateAutomation } from '../automation/validate.ts';
 import type { Rpc, ToolCtx } from './tools.ts';
 
-export type ProposalStep = 'save_draft' | 'publish' | 'publish_enable' | 'publish_disabled' | 'reject' | 'save_dashboard';
+export type ProposalStep = 'save_draft' | 'publish' | 'publish_enable' | 'publish_disabled' | 'reject' | 'save_dashboard' | 'confirm';
 export type Applied = { ok: true; message: string; status: string } | { ok: false; error: string };
-type Proposal = { id: string; kind: 'module_config' | 'workflow' | 'dashboard'; title: string; payload: Record<string, unknown>; base_revision: number | null; status: string; workflow_id: string | null };
+type Proposal = { id: string; kind: 'module_config' | 'workflow' | 'dashboard' | 'operation'; title: string; payload: Record<string, unknown>; base_revision: number | null; status: string; workflow_id: string | null };
 const safe = (e: { code?: string; message: string }) => (['22023', '23505', '42501', 'P0002'].includes(e.code ?? '') ? e.message : 'Something went wrong. Please try again.');
 const norm = (c: WorkspaceConfig) => JSON.stringify({ ...c, businessName: '', industryTemplate: undefined });
 
@@ -22,6 +22,22 @@ export async function applyProposal(ctx: Pick<ToolCtx, 'org' | 'rpc' | 'loadConf
 
   if (step === 'reject') { const r = await setStatus('rejected', null); return r.error ? bad(safe(r.error)) : { ok: true, status: 'rejected', message: 'Dismissed. Nothing was changed.' }; }
 
+  if (p.kind === 'operation') {
+    if (step !== 'confirm') return bad('That action does not apply to this proposal.');
+    if (p.status !== 'pending') return bad('This proposal was already handled.');
+    // Runs as the CONFIRMING user, through the same functions the screens use: their role, visibility and the database's own rules decide. Only these three operations exist.
+    const o = p.payload as { op: string; lead_id: string; changes?: Record<string, string>; assignee_id?: string | null; title?: string; due_in_days?: number; owner_id?: string };
+    let r: { error: { code?: string; message: string } | null } = { error: null };
+    if (o.op === 'update_lead') {
+      if (o.changes?.stage) r = await rpc('crm_set_stage', { p_org: ctx.org, p_lead: o.lead_id, p_stage: o.changes.stage });
+      if (!r.error && (o.changes?.full_name || o.changes?.source || o.changes?.summary !== undefined)) r = await rpc('crm_patch_lead', { p_org: ctx.org, p_lead: o.lead_id, p_full_name: o.changes.full_name ?? null, p_source: o.changes.source ?? null, p_summary: o.changes.summary ?? null });
+    } else if (o.op === 'assign_lead') r = await rpc('crm_assign_lead', { p_org: ctx.org, p_lead: o.lead_id, p_assignee: o.assignee_id ?? null });
+    else if (o.op === 'create_task') r = await rpc('crm_create_task', { p_org: ctx.org, p_lead: o.lead_id, p_title: o.title, p_owner: o.owner_id, p_due: new Date(Date.now() + (o.due_in_days ?? 0) * 864e5).toISOString().slice(0, 10) });
+    else return bad('That operation is not supported.');
+    if (r.error) return bad(safe(r.error));
+    const st = await setStatus('published', { executed: o.op }); if (st.error) return bad(safe(st.error));
+    return { ok: true, status: 'published', message: 'Done.' };
+  }
   if (p.kind === 'dashboard') {
     if (step !== 'save_dashboard') return bad('That action does not apply to this proposal.');
     if (p.status !== 'pending') return bad('This proposal was already handled.');

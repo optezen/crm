@@ -38,7 +38,7 @@ test('ACCEPTANCE: owner publishes Vehicles; employee creates a record; it persis
   const token = (await emp.client.auth.getSession()).data.session.access_token;
   assert.ifError((await emp.client.auth.signOut({ scope: 'global' })).error);
   assert.ok((await anon().auth.getUser(token)).error, 'old session is revoked');
-  assert.deepEqual((await emp.client.from('records').select('id')).data ?? [], [], 'signed-out client sees nothing');
+  assert.deepEqual((await emp.client.from('records_view').select('id')).data ?? [], [], 'signed-out client sees nothing');
   const again = anon();
   assert.ifError((await again.auth.signInWithPassword({ email: emp.email, password: emp.password })).error);
   const E2 = await ctxFor({ ...emp, client: again }, orgA);
@@ -61,7 +61,7 @@ test('organization isolation and permissions on live data', opt, async () => {
   const X = await ctxFor(other, orgB);
   ok(await records.createRecord(X, 'vehicles', { chassis: 'CH-1' }));
   assert.equal(ok(await records.listRecords(X, 'vehicles', { page: 1, q: '', filters: {} })).total, 1, 'B sees only its own');
-  assert.deepEqual((await other.client.from('records').select('id').eq('organization_id', orgA)).data, []);
+  assert.deepEqual((await other.client.from('records_view').select('id').eq('organization_id', orgA)).data, []);
   assert.equal((await records.getRecord(X, 'vehicles', mine.id)).ok, false, 'A\'s record id is invisible to B');
   assert.equal((await records.updateRecord(X, 'vehicles', mine.id, { chassis: 'x' })).ok, false);
   const spoof = { ...X, organizationId: orgA }; // B's user claiming org A

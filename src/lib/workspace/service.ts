@@ -28,7 +28,7 @@ export const getWorkspaceState = cache(async (): Promise<WorkspaceState> => {
   return { status: 'ready', userId: user.id, organizationId: active.organizationId, role: active.role, config: cfg.definition as WorkspaceConfig };
 });
 
-export async function createWorkspace(input: { name: unknown; description: unknown; choice: SetupChoice }): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function createWorkspace(input: { name: unknown; description: unknown; choice: SetupChoice }): Promise<{ ok: true; organizationId: string } | { ok: false; error: string }> {
   // The configuration is rebuilt and validated here from the user's choice; a client-supplied config is never stored as-is.
   const r = configFromChoice(input, input.choice);
   if (!r.ok) return r;
@@ -40,5 +40,5 @@ export async function createWorkspace(input: { name: unknown; description: unkno
   // Only errors the SQL function raises deliberately (invalid input / limit) are shown; anything else stays generic.
   if (error) return { ok: false, error: error.code === '22023' || error.code === '54000' ? error.message : 'Could not create the workspace. Please try again.' };
   (await cookies()).set(ORG_COOKIE, String(data), { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' });
-  return { ok: true };
+  return { ok: true, organizationId: String(data) };
 }

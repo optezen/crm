@@ -7,6 +7,8 @@ import { validateAutomation, describeAutomation } from '../automation/validate.t
 import { TRIGGERS, ACTION_TYPES, CONDITION_OPS, scopeOf } from '../automation/types.ts';
 import { check, toJsonSchema, type ObjectSchema } from './schema.ts';
 import { applyOps, OPS_SCHEMA, type Op } from './config-ops.ts';
+import { checkPlan, STEP_KINDS, type StepInput } from './plan.ts';
+import type { Query } from '../analytics/types.ts';
 import { sanitizeUntrusted, UNTRUSTED_NOTICE } from './injection.ts';
 import type { ToolSpec } from './provider.ts';
 
@@ -111,6 +113,64 @@ export const TOOLS: ToolDef[] = [
       return { data: { proposal_id: id, status: 'pending_user_approval', preview, next_step: 'The user sees the preview with an Approve button in the chat. No dashboard exists until they approve. Do not say it was created.' }, count: preview.length };
     } },
 
+  { name: 'propose_plan', roles: ADMIN,
+    description: `Prepare a MULTI-STEP configuration plan when the user describes several dependent things at once (for example: a Vehicles module, its fields, its form layout, a workflow on it, a dashboard about it). Nothing is applied: the user sees one combined preview, accepts or rejects each step, and approves in two explicit phases (save as drafts, then publish).
+Steps are applied in order and may use things earlier steps create. Each step: key (short unique id such as "vehicles"), kind, title, depends_on (earlier step keys; inferred when omitted) and args:
+- module: {module_label, fields:[{label,kind,required?,options?,currency?}]}  (kinds: text, number, date, choice, yes_no, phone, email, currency)
+- fields: {module: label, key or earlier step key, fields:[...]}
+- layout: {module, layout:{sections:[{title,fields:[label|key]}], order?:[...], help:[{field,text}], required:[{field,value}]}}
+- pipeline: {pipeline:{stages:[...], settings:[{stage,color?(gray|green|blue|amber|red|purple),requires_assignee?,requires_summary?}], moves:[{from,to}]}}
+- ops_module: {module: appointments|inventory|billing, enabled: true|false}
+- workflow: {name, summary?, definition: <automation grammar, see propose_automation>}; trigger.object may be a module label/key or an earlier module step
+- dashboard: {name, description?, visibility?, widgets:[{type,title,query}]}; query.source may be "records:<module label/key>", fields may be labels (phone/email fields are never available)
+- role: {name, base: admin|manager|employee, deny:[{module,actions:[view|create|edit|archive|export|assign|approve]}], scopes:[{module,scope: all|team|assigned|own}]}  (roles only NARROW their base; they are not assigned to anyone)
+Only supported things can be planned; unsupported requests must be refused in words. Never invent modules, fields or metrics. Do not include a step for something that already exists.`,
+    schema: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 160 }, summary: { type: 'string', maxLength: 500 },
+      steps: { type: 'array', minItems: 1, maxItems: 12, items: { type: 'object', properties: { key: { type: 'string', pattern: '^[a-z][a-z0-9_]{0,29}$' }, kind: { type: 'string', enum: STEP_KINDS }, title: { type: 'string', minLength: 1, maxLength: 160 },
+        depends_on: { type: 'array', items: { type: 'string', maxLength: 30 }, maxItems: 11 }, args: { type: 'free_object', maxBytes: 20000 } }, required: ['key', 'kind', 'title', 'args'] } } }, required: ['title', 'steps'] },
+    run: async (ctx, a) => {
+      const cfgs = await ctx.loadConfigs();
+      const r = await checkPlan({ base: cfgs.draft ?? cfgs.published, live: cfgs.published, validateQuery: async (q: Query) => { try { const v = (await db(ctx, 'analytics_validate', { p_q: q })) as { definition: string; grouped: number }; return { ok: true, definition: v.definition, grouped: v.grouped }; } catch (e) { return { ok: false, error: e instanceof ToolError ? e.message : 'The metric could not be checked.' }; } } }, a.steps as StepInput[]);
+      if (!r.ok) throw new ToolError(`The plan is not valid: ${r.errors.join(' | ')} Fix these and call propose_plan again. Do not tell the user a plan exists.`, 'invalid');
+      const id = await db(ctx, 'ai_plan_create', { p_conv: ctx.conversationId, p_title: String(a.title), p_summary: (a.summary as string | undefined) ?? null, p_base_revision: cfgs.publishedRevision, p_steps: r.steps.map(s => ({ key: s.key, kind: s.kind, title: s.title, depends_on: s.depends_on, args: s.args })) });
+      return { data: { plan_id: id, status: 'pending_user_approval', steps: r.steps.map(s => ({ key: s.key, kind: s.kind, title: s.title, depends_on: s.depends_on, preview: s.preview.slice(0, 6), warnings: s.warnings })), configuration_changes: r.diff, next_step: 'The user sees one combined preview with Accept/Reject per step and two approval buttons (save as drafts, then publish). Nothing is saved, published or live until they approve each phase. Do not say it was applied.' }, count: r.steps.length };
+    } },
+  { name: 'propose_lead_update', roles: ALL,
+    description: 'Prepare a CONFIRMED change to one lead the user can see: name, source, summary and/or stage. The user must press Confirm; nothing changes before. Phone and email cannot be changed through the assistant. Use list_leads to get lead_id.',
+    schema: { type: 'object', properties: { lead_id: { type: 'string', pattern: UUID }, full_name: { type: 'string', minLength: 1, maxLength: 120 }, source: { type: 'string', enum: LEAD_SOURCES }, summary: { type: 'string', maxLength: 2000 }, stage: { type: 'string', maxLength: 80 }, reason: { type: 'string', maxLength: 200 } }, required: ['lead_id'] },
+    run: async (ctx, a) => {
+      const lead = (await db(ctx, 'ai_tool_get_lead', { p_lead: a.lead_id, p_include_contact: false })) as { name: string; stage: string; source: string };
+      const changes: Record<string, unknown> = {}; for (const k of ['full_name', 'source', 'summary', 'stage']) if (a[k] !== undefined) changes[k] = a[k];
+      if (!Object.keys(changes).length) throw new ToolError('Nothing to change: give at least one of full_name, source, summary or stage.', 'invalid');
+      if (changes.stage) { const stages = (await ctx.loadConfigs()).published.pipeline.stages; if (!stages.includes(String(changes.stage))) throw new ToolError(`"${changes.stage}" is not a pipeline stage (${stages.join(', ')}).`, 'invalid'); }
+      const preview = Object.entries(changes).map(([k, v]) => `${k.replace('_', ' ')}: ${k === 'stage' ? lead.stage : k === 'source' ? lead.source : k === 'full_name' ? lead.name : 'current'} → ${String(v).slice(0, 120)}`);
+      const id = await db(ctx, 'ai_create_proposal', { p_conv: ctx.conversationId, p_kind: 'operation', p_title: `Update lead ${lead.name}`.slice(0, 160), p_payload: { op: 'update_lead', lead_id: a.lead_id, lead_name: lead.name, changes, reason: a.reason ?? null, preview, summary: `Update lead ${lead.name}` }, p_base_revision: null });
+      return { data: { proposal_id: id, status: 'pending_user_approval', preview, next_step: 'The user sees a Confirm button. Nothing is changed until they press it. Do not say it was done.' }, count: 1 };
+    } },
+  { name: 'propose_assignment', roles: ALL,
+    description: 'Prepare a CONFIRMED assignment of one lead to a team member, by email, or "me", or "none" to unassign. Employees can only assign to themselves. Nothing changes until the user confirms.',
+    schema: { type: 'object', properties: { lead_id: { type: 'string', pattern: UUID }, assignee: { type: 'string', maxLength: 254, description: '"me", "none", or the team member\'s email address.' } }, required: ['lead_id', 'assignee'] },
+    run: async (ctx, a) => {
+      const lead = (await db(ctx, 'ai_tool_get_lead', { p_lead: a.lead_id, p_include_contact: false })) as { name: string; assigned_to: string | null };
+      let to: string | null; let label: string;
+      if (a.assignee === 'none') { to = null; label = 'nobody (unassign)'; } else if (a.assignee === 'me') { to = ctx.userId; label = 'you'; }
+      else { const hit = (await db(ctx, 'ai_resolve_member', { p_email: a.assignee })) as { user_id: string; email: string } | null; if (!hit) throw new ToolError(`No active team member has the email "${a.assignee}".`, 'not_found'); to = hit.user_id; label = hit.email; }
+      const preview = [`Assignee: ${lead.assigned_to ?? 'nobody'} → ${label}`];
+      const id = await db(ctx, 'ai_create_proposal', { p_conv: ctx.conversationId, p_kind: 'operation', p_title: `Assign ${lead.name}`.slice(0, 160), p_payload: { op: 'assign_lead', lead_id: a.lead_id, lead_name: lead.name, assignee_id: to, assignee_label: label, preview, summary: `Assign lead ${lead.name} to ${label}` }, p_base_revision: null });
+      return { data: { proposal_id: id, status: 'pending_user_approval', preview, next_step: 'The user sees a Confirm button. Nothing changes until they press it.' }, count: 1 };
+    } },
+  { name: 'propose_task', roles: ALL,
+    description: 'Prepare a CONFIRMED follow-up task on a lead the user can see. owner: "me" or a team member email. Nothing is created until the user confirms.',
+    schema: { type: 'object', properties: { lead_id: { type: 'string', pattern: UUID }, title: { type: 'string', minLength: 1, maxLength: 200 }, due_in_days: { type: 'integer', minimum: 0, maximum: 365 }, owner: { type: 'string', maxLength: 254 } }, required: ['lead_id', 'title', 'due_in_days', 'owner'] },
+    run: async (ctx, a) => {
+      const lead = (await db(ctx, 'ai_tool_get_lead', { p_lead: a.lead_id, p_include_contact: false })) as { name: string; assigned_to: string | null };
+      let owner: string; let label: string;
+      if (a.owner === 'me') { owner = ctx.userId; label = 'you'; }
+      else { const hit = (await db(ctx, 'ai_resolve_member', { p_email: a.owner })) as { user_id: string; email: string } | null; if (!hit) throw new ToolError(`No active team member has the email "${a.owner}".`, 'not_found'); owner = hit.user_id; label = hit.email; }
+      const preview = [`New task “${a.title}” on ${lead.name}, owner ${label}, due in ${a.due_in_days} day(s)`];
+      const id = await db(ctx, 'ai_create_proposal', { p_conv: ctx.conversationId, p_kind: 'operation', p_title: `Task for ${lead.name}`.slice(0, 160), p_payload: { op: 'create_task', lead_id: a.lead_id, lead_name: lead.name, title: a.title, due_in_days: a.due_in_days, owner_id: owner, owner_label: label, preview, summary: `Create a follow-up task on ${lead.name}` }, p_base_revision: null });
+      return { data: { proposal_id: id, status: 'pending_user_approval', preview, next_step: 'The user sees a Confirm button. Nothing is created until they press it.' }, count: 1 };
+    } },
   { name: 'propose_module_changes', roles: ADMIN,
     description: 'Prepare a DRAFT change to the workspace configuration (new module, new fields, renames, hiding a field, or enabling/disabling the optional Appointments, Inventory and Billing modules). Nothing is saved or published: the user reviews a preview and diff and must approve. Use list_modules first for existing module keys. Fields: text, number, date, choice (dropdown, needs options), yes_no (checkbox), phone, email, currency. Not supported: relations between modules, formulas, per-module permissions, deleting modules or data.',
     schema: OPS_SCHEMA,

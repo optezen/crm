@@ -10,20 +10,21 @@ import { commit, history, redo, seal, undo, type History } from '../../lib/build
 import { WorkflowCanvas, type Selection } from './WorkflowCanvas';
 import { ActionFields, ConditionsEditor, fieldOptionsFor, type MemberOption, type ModuleOption } from '../automation/fields';
 import { discardAutomationDraftAction, setEnabledAction } from '../../app/(app)/automations/actions';
-import { publishVisualAction, saveVisualAction, type VisualResult } from '../../app/(app)/automations/visual-actions';
+import { deleteWipAction, publishVisualAction, saveVisualAction, saveWipAction, type VisualResult } from '../../app/(app)/automations/visual-actions';
 
 type E = { graph: Graph; pos: Layout['pos'] };
 const START: AutomationDefinition = { trigger: { event: 'lead.created' }, actions: [{ type: 'assign_round_robin' }, { type: 'create_task', title: 'Call {{lead.full_name}}', due_in_days: 1, owner: 'lead_assignee' }] };
 
-export function WorkflowStudio({ id, name: initName, enabled, publishedVersion, draft, published, initial, layout, token: initToken, modules, members, proposalId, banner }: {
+export function WorkflowStudio({ id, name: initName, enabled, publishedVersion, draft, published, initial, layout, token: initToken, modules, members, proposalId, banner, wip = null }: {
   id: string | null; name: string; enabled: boolean; publishedVersion: number | null; draft: AutomationDefinition | null; published: AutomationDefinition | null; initial: AutomationDefinition | null; layout: Layout | null; token: string | null;
-  modules: ModuleOption[]; members: MemberOption[]; proposalId: string | null; banner: string | null;
+  modules: ModuleOption[]; members: MemberOption[]; proposalId: string | null; banner: string | null; wip?: { id: string; name: string; graph: Graph; pos: Layout['pos'] } | null;
 }) {
   const router = useRouter();
-  const [first] = useState(() => definitionToGraph(draft ?? published ?? initial ?? START, layout));
+  const [first] = useState(() => (wip ? { graph: wip.graph, pos: wip.pos, view: undefined } : definitionToGraph(draft ?? published ?? initial ?? START, layout)));
+  const [wipId, setWipId] = useState<string | null>(wip?.id ?? null);
   const [h, setH] = useState<History<E>>(() => history({ graph: first.graph, pos: first.pos }));
   const [sel, setSel] = useState<Selection>(null);
-  const [name, setName] = useState(initName || 'New lead follow-up');
+  const [name, setName] = useState(wip?.name || initName || 'New lead follow-up');
   const [wfId, setWfId] = useState(id), [token, setToken] = useState(initToken);
   const [hasDraft, setHasDraft] = useState(!!draft);
   const view = useRef(first.view ?? null);
@@ -70,8 +71,9 @@ export function WorkflowStudio({ id, name: initName, enabled, publishedVersion, 
   const layoutOut = (order: string[]): Layout => ({ v: 1, order, pos: Object.fromEntries(order.map(i => [i, pos[i] ?? { x: 0, y: 0 }])), ...(view.current ? { view: view.current } : {}) });
   const run = (fn: () => Promise<VisualResult>, after?: (r: Extract<VisualResult, { ok: true }>) => void) => startT(async () => { const r = await fn(); setMsg(r.ok ? { ok: true, text: r.message } : { ok: false, text: r.error, conflict: r.conflict }); if (r.ok) after?.(r); });
   const save = () => { if (!compiled.ok) return; run(() => saveVisualAction({ id: wfId, name, definition: compiled.definition, layout: layoutOut(compiled.order), token, basePublished: publishedVersion, proposalId }), r => {
-    setSaved(snap(name, graph, pos)); setHasDraft(true); if (r.token) setToken(r.token);
+    setSaved(snap(name, graph, pos)); setHasDraft(true); if (r.token) setToken(r.token); if (wipId) { void deleteWipAction(wipId); setWipId(null); }
     if (!wfId && r.id) { setWfId(r.id); router.replace(`/automations/${r.id}${proposalId ? `?proposal=${proposalId}` : ''}`); } }); };
+  const saveWip = () => startT(async () => { const r = await saveWipAction({ id: wipId, workflowId: wfId, name, graph: { nodes: graph.nodes, edges: graph.edges, pos } }); if (r.ok) { setWipId(r.id); setMsg({ ok: true, text: r.message }); } else setMsg({ ok: false, text: r.error }); });
   const publish = (enable: boolean) => { if (wfId) run(() => publishVisualAction(wfId, enable, proposalId), () => { setToken('none'); setHasDraft(false); router.refresh(); }); };
   const addable = actionsFor(trig?.event ?? '').filter(a => a !== 'wait');
   const hasCond = graph.nodes.some(n => n.kind === 'condition');
@@ -85,7 +87,8 @@ export function WorkflowStudio({ id, name: initName, enabled, publishedVersion, 
       <button type="button" className="btn" disabled={!h.future.length} onClick={undoRedo.redo} aria-keyshortcuts="Control+Shift+Z">Redo</button>
       <button type="button" className="btn" onClick={tidy}>Tidy layout</button>
       <button type="button" className="btn primary" disabled={pending || !compiled.ok || !dirty} onClick={save}>Save draft</button>
-      <span className={`save-state ${dirty ? 'dirty' : 'clean'}`} role="status">{dirty ? 'Unsaved changes' : hasDraft ? 'Draft saved (not live)' : publishedVersion ? 'No changes' : 'Saved'}{!compiled.ok ? ' · has problems' : ''}</span>
+      <button type="button" className="btn" disabled={pending || graph.nodes.length === 0} onClick={saveWip} title="Keeps an incomplete canvas. It cannot run or be published.">{wipId ? 'Update unfinished work' : 'Save unfinished work'}</button>
+      <span className={`save-state ${dirty ? 'dirty' : 'clean'}`} role="status">{dirty ? 'Unsaved changes' : hasDraft ? 'Draft saved (not live)' : publishedVersion ? 'No changes' : 'Saved'}{!compiled.ok ? ' · has problems (not publishable)' : ''}{wipId ? ' · unfinished copy saved' : ''}</span>
     </div>
 
     <div className="studio">

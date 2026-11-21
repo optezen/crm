@@ -12,7 +12,7 @@ export default async function Automations() {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
   if (!canBuild(s.role)) return <Notice title="Automations are limited to owners and admins">Ask an owner or admin to set up or review automations.</Notice>;
   const db = await supabaseServer();
-  const [wf, runs] = await Promise.all([listWorkflows(db, s.organizationId), listRuns(db, s.organizationId, undefined, 20)]);
+  const [wf, runs, wips] = await Promise.all([listWorkflows(db, s.organizationId), listRuns(db, s.organizationId, undefined, 20), db.from('automation_wip').select('id, name, workflow_id, updated_at').eq('organization_id', s.organizationId).order('updated_at', { ascending: false }).limit(20)]);
   return <div className="stack">
     <StudioNav current="workflows" />
     <div className="top"><div><span className="eyebrow">Optizen Automations</span><h1>Automations</h1><p className="muted">Do routine work automatically: assign new leads in rotation, create follow-up tasks, notify the team, update records. They run in the background, even when nobody is signed in.</p></div>
@@ -24,6 +24,7 @@ export default async function Automations() {
       {wf.ok && wf.value.map(w => <div className="task" key={w.id}><div className="row"><Link href={`/automations/${w.id}`}><strong>{w.name}</strong></Link>
         <span className={`badge ${w.enabled ? '' : 'done'}`}>{w.enabled ? 'Enabled' : w.publishedVersion ? 'Disabled' : 'Draft only'}</span>{w.publishedVersion && <span className="tag">v{w.publishedVersion}</span>}</div></div>)}
     </Card>
+    {(wips.data ?? []).length > 0 && <Card title="Your unfinished workflows" description="Incomplete canvases you saved. They are not automations: they cannot run or be published until completed and saved as a draft."><div className="stack">{(wips.data ?? []).map(x => <div className="task" key={x.id}><div className="row"><Link href={`/automations/${x.workflow_id ?? 'new'}?wip=${x.id}`}><strong>{x.name}</strong></Link><span className="badge done">Unfinished</span></div></div>)}</div></Card>}
     <Card title="Recent runs" description="Execution history across all automations.">{runs.ok ? <RunLog runs={runs.value} showWorkflow /> : <p className="err">{runs.error}</p>}</Card>
   </div>;
 }

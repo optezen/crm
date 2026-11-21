@@ -49,7 +49,7 @@ type Preview = { state: 'loading' } | { state: 'ok'; result: QueryResult } | { s
 
 /** Drag-and-drop dashboard layout. Widgets flow in order across a 12-column grid; position = order, size = columns x rows (the same fields dashboards already persist),
  * so a layout made here, by the AI or in the old form is identical. Previews run as the signed-in user, so they can never show data the user may not see. */
-export function DashboardEditor({ id, initial, catalog, canShare, proposalId = null, banner = null, stages }: { id: string | null; initial: { name: string; description: string; visibility: 'personal' | 'organization'; version: number | null; widgets: Widget[] }; catalog: Catalog; canShare: boolean; proposalId?: string | null; banner?: string | null; stages?: string[] }) {
+export function DashboardEditor({ id, initial, catalog, canShare, proposalId = null, banner = null, stages, planRef = null }: { id: string | null; initial: { name: string; description: string; visibility: 'personal' | 'organization'; version: number | null; widgets: Widget[] }; catalog: Catalog; canShare: boolean; proposalId?: string | null; banner?: string | null; stages?: string[]; planRef?: { plan: string; step: string } | null }) {
   const router = useRouter(); const [pending, start] = useTransition(); const [msg, setMsg] = useState<{ ok: boolean; text: string }>();
   const [h, setH] = useState<History<GridDraft>>(() => history({ name: initial.name, description: initial.description, visibility: initial.visibility, widgets: initial.widgets }));
   const d = h.present; const [sel, setSel] = useState<number | null>(null); const [tpl, setTpl] = useState('');
@@ -75,7 +75,7 @@ export function DashboardEditor({ id, initial, catalog, canShare, proposalId = n
   const remove = (i: number) => { setWidgets(d.widgets.filter((_, j) => j !== i)); setSel(null); };
   const relocate = (from: number, to: number) => { const r = moveWidget(d.widgets, from, to); if (r !== d.widgets) { setWidgets(r); setSel(to); } };
   const save = () => start(async () => {
-    const r = await saveDashboardAction(id, { name: d.name, description: d.description, visibility: d.visibility, widgets: d.widgets, version }, proposalId);
+    const r = await saveDashboardAction(id, { name: d.name, description: d.description, visibility: d.visibility, widgets: d.widgets, version }, proposalId, planRef);
     if (!r.ok) { setMsg({ ok: false, text: r.error }); return; }
     setSaved(JSON.stringify(d)); setVersion(r.version); setMsg({ ok: true, text: 'Saved.' }); if (!id) router.replace(`/dashboards/${r.id}?edit=1`);
   });

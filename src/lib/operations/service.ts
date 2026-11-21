@@ -39,13 +39,14 @@ export const movements = async (db: Db, org: string, limit = 30) => must(await d
 export type InvoiceBalance = { invoice_id: string; number: string | null; status: string; currency: string; total: string; due_date: string | null; contact_id: string | null; paid: string; refunded: string; credited: string; balance_due: string; payment_state: string; overdue: boolean };
 export const invoiceBalances = async (db: Db, org: string, limit = 100) => must(await db.from('invoice_balances').select('invoice_id, number, status, currency, total, due_date, contact_id, paid, refunded, credited, balance_due, payment_state, overdue').eq('organization_id', org).limit(limit), []) as InvoiceBalance[];
 export async function invoiceDetail(db: Db, org: string, id: string) {
-  const [inv, lines, pays, cns, ledger, bal] = await Promise.all([
-    db.from('invoices').select('id, status, number, contact_id, lead_id, currency, issue_date, due_date, notes, subtotal, discount_total, tax_total, total, snapshot').eq('organization_id', org).eq('id', id).maybeSingle(),
+  const [inv, snap, lines, pays, cns, ledger, bal] = await Promise.all([
+    db.from('invoices').select('id, status, number, contact_id, lead_id, currency, issue_date, due_date, notes, subtotal, discount_total, tax_total, total').eq('organization_id', org).eq('id', id).maybeSingle(),
+    db.rpc('invoice_snapshot', { p_org: org, p_id: id }), // the frozen snapshot, with customer phone/email removed unless the role may see invoice contact details
     db.from('invoice_lines').select('position, description, quantity, unit_price, discount_type, discount_value, tax_keys, gross, discount, net, tax, line_total').eq('invoice_id', id).order('position'),
     db.from('invoice_payments').select('id, kind, amount, method, reference, note, source, received_at').eq('invoice_id', id).order('seq'),
     db.from('credit_notes').select('number, amount, net_amount, tax_amount, reason, issued_at').eq('invoice_id', id).order('seq'),
     db.from('invoice_ledger').select('kind, amount, created_at').eq('invoice_id', id).order('seq'),
     db.from('invoice_balances').select('balance_due, payment_state, paid, refunded, credited, overdue').eq('invoice_id', id).maybeSingle(),
   ]);
-  return { invoice: inv.data as Record<string, unknown> | null, lines: (lines.data ?? []) as Record<string, unknown>[], payments: (pays.data ?? []) as Record<string, unknown>[], creditNotes: (cns.data ?? []) as Record<string, unknown>[], ledger: (ledger.data ?? []) as Record<string, unknown>[], balance: bal.data as Record<string, string | boolean> | null };
+  return { invoice: inv.data ? ({ ...(inv.data as Record<string, unknown>), snapshot: snap.error ? null : snap.data }) as Record<string, unknown> : null, lines: (lines.data ?? []) as Record<string, unknown>[], payments: (pays.data ?? []) as Record<string, unknown>[], creditNotes: (cns.data ?? []) as Record<string, unknown>[], ledger: (ledger.data ?? []) as Record<string, unknown>[], balance: bal.data as Record<string, string | boolean> | null };
 }

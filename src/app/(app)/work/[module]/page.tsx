@@ -27,7 +27,7 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
   const cols = fields.slice(0, 5);
   return <div className="stack">
     <div className="top"><div><span className="eyebrow">Optizen Work mode</span><h1>{mod.label}</h1><p className="muted">{total} {total === 1 ? 'record' : 'records'}{filtered ? ' match your filters' : ''}.</p></div>
-      <Link className="btn primary" href={`/work/${module}/new`}>Add record</Link></div>
+      <div className="row">{fields.some(f => f.kind === 'choice') && <Link className="btn" href={`/work/${module}/board`}>Board view</Link>}<Link className="btn primary" href={`/work/${module}/new`}>Add record</Link></div></div>
     <form className="filters" method="get" role="search" aria-label={`Filter ${mod.label}`}>
       <div className="field grow"><label htmlFor="q">Search</label><input id="q" name="q" className="input" defaultValue={p.q} placeholder="Search all fields" /></div>
       {filterable.map(f => <div className="field" key={f.key}><label htmlFor={`flt-${f.key}`}>{f.label}</label>

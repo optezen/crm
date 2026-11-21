@@ -63,3 +63,7 @@ Build dashboards from real data at `/dashboards`, use the report library at `/re
 ## Builder Studio
 
 Design workflows on a canvas, forms, pipelines (with a lead board) and dashboards visually; the AI, the canvas and the forms all use the same validated models. See [docs/BUILDER_STUDIO.md](docs/BUILDER_STUDIO.md).
+
+## AI engine
+
+Voice, streaming, multi-step plans, confirmed lead operations and conversational onboarding: see [docs/AI_ENGINE.md](docs/AI_ENGINE.md).

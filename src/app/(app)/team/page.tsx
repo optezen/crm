@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { getCrmContext } from '../../../lib/crm/context';
-import { listMembers } from '../../../lib/crm/service';
+import { listTeam } from '../../../lib/automation/service';
+import { supabaseServer } from '../../../lib/supabase/server';
+import { ActiveToggle } from './ActiveToggle';
 import { ASSIGNABLE_ROLES } from '../../../lib/crm/types';
 import { canBuild } from '../../../lib/workspace/resolve';
 import { ActionForm } from '../../../components/ui/ActionForm';
@@ -12,11 +14,11 @@ import { addMemberAction, setRoleAction } from './actions';
 export default async function Team() {
   const ctx = await getCrmContext(); if (!ctx) notFound();
   if (!canBuild(ctx.role)) return <Notice title="Team management is limited to owners and admins">Ask an owner or admin to change who is on the team.</Notice>;
-  const res = await listMembers(ctx);
+  const res = await listTeam(await supabaseServer(), ctx.organizationId);
   if (!res.ok) return <Notice title="Team could not be loaded">{res.error}</Notice>;
   const roles = ctx.role === 'owner' ? ASSIGNABLE_ROLES : ASSIGNABLE_ROLES.filter(r => r !== 'admin');
   return <div className="stack">
-    <div className="top"><div><span className="eyebrow">Optizen Builder</span><h1>Team</h1><p className="muted">Owners and admins manage who can work in this workspace. Managers can assign any lead; employees see their own and unassigned leads.</p></div></div>
+    <div className="top"><div><span className="eyebrow">Optizen Builder</span><h1>Team</h1><p className="muted">Owners and admins manage who can work in this workspace. Managers can assign any lead; employees see their own and unassigned leads. Inactive members are skipped by automatic assignment.</p></div></div>
     <Card title="Add a team member" description="They must have signed in to Optizen once with this email.">
       <ActionForm action={addMemberAction} submit="Add to team" resetOnSuccess>
         <div className="form-grid">
@@ -27,7 +29,8 @@ export default async function Team() {
     </Card>
     <Card title={`Members (${res.value.length})`}>
       {res.value.map(m => <div className="task" key={m.userId}>
-        <div className="row"><strong>{m.email}{m.userId === ctx.userId ? ' (you)' : ''}</strong><span className="badge">{m.role}</span></div>
+        <div className="row"><strong>{m.email}{m.userId === ctx.userId ? ' (you)' : ''}</strong><span className="badge">{m.role}</span>{!m.active && <span className="badge done">Inactive</span>}</div>
+        {m.role !== 'owner' && m.userId !== ctx.userId && (ctx.role === 'owner' || m.role !== 'admin') && <ActiveToggle userId={m.userId} active={m.active} />}
         {m.role !== 'owner' && m.userId !== ctx.userId && (ctx.role === 'owner' || m.role !== 'admin') &&
           <ActionForm action={setRoleAction} submit="Change role" className="inline">
             <input type="hidden" name="userId" value={m.userId} />

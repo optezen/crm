@@ -39,3 +39,19 @@ See `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/CONFIG_CONTRACT.md`, and `d
 ## Hosting
 
 Target is Fly.io. Next.js `output: 'standalone'` is configured. Deploy after production-ready authentication, secrets, backups, and staging tests exist, via `fly launch` and `fly deploy` following current Fly.io documentation. No deployment has been performed.
+
+## Automations
+
+Owners/admins build trigger -> conditions -> actions workflows at `/automations`. A background worker (`worker/automation-worker.mjs`) executes them; see [docs/AUTOMATION.md](docs/AUTOMATION.md) for design, limits and the infrastructure to configure.
+
+## Connections
+
+Owners/admins connect services at `/builder/connections`: Website Forms (complete), Meta Lead Ads and WhatsApp (adapters, need provider authorization), Google Ads / Telephony / Payments (contract only). See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+
+## AI assistant
+
+"Ask Optizen" answers questions from your real workspace data and prepares module and automation drafts that you approve before anything changes. See [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
+
+## Business operations
+
+Optional Appointments, Inventory and Billing modules, enabled per workspace in Builder. See [docs/OPERATIONS.md](docs/OPERATIONS.md).

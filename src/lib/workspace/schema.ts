@@ -1,5 +1,6 @@
 // Pure workspace-configuration logic shared by onboarding, the Builder (client + server) and tests. No framework imports.
 // validateConfig mirrors public.validate_workspace_definition (migration 0005); the database re-validates every write.
+import type { OperationsConfig, TaxConfig } from './types.ts';
 import { CORE_MODULES, FIELD_KINDS, type FieldConfig, type FieldKind, type ModuleConfig, type ObjectConfig, type Preset, type Result, type SetupChoice, type WorkspaceConfig } from './types.ts';
 import { getPreset } from './presets.ts';
 
@@ -22,6 +23,58 @@ export function validateOnboarding(input: { name?: unknown; description?: unknow
 }
 
 /** Validates and normalizes a proposed configuration. Returns every problem found so the Builder can show them all. */
+const TZ_OK = (z: string) => { try { new Intl.DateTimeFormat('en', { timeZone: z }); return true; } catch { return false; } };
+/** Mirror of public.ops_validate (migration 0010). Custom fields are validated with the SAME code as custom-module fields. */
+export function validateOperations(raw: unknown): { ok: true; value: OperationsConfig } | { ok: false; errors: string[] } {
+  const errors: string[] = [], out: OperationsConfig = {};
+  if (!isObj(raw) || Object.keys(raw).some(k => !['appointments', 'inventory', 'billing'].includes(k))) return { ok: false, errors: ['The operations settings are invalid.'] };
+  const bool = (o: Record<string, unknown>, k: string) => o[k] === undefined || typeof o[k] === 'boolean';
+  const fieldsOf = (v: unknown, label: string): FieldConfig[] | undefined => {
+    if (v === undefined) return undefined;
+    if (!Array.isArray(v) || v.length > 15) { errors.push(`${label}: custom fields must be a list of at most 15.`); return undefined; }
+    const r = validateConfig({ schemaVersion: 1, businessName: 'x', modules: coreModules(), objects: [{ key: 'ops', label: 'Ops', fields: v }], pipeline: { stages: ['a', 'b'] } });
+    if (!r.ok) { errors.push(...r.errors.map(e => `${label}: ${e}`)); return undefined; }
+    return r.value.objects[0]!.fields;
+  };
+  const a = raw.appointments;
+  if (a !== undefined) {
+    if (!isObj(a) || Object.keys(a).some(k => !['enabled', 'timezone', 'enforce_working_hours', 'fields'].includes(k)) || typeof a.enabled !== 'boolean' || !bool(a, 'enforce_working_hours')) errors.push('The appointments settings are invalid.');
+    else if (a.timezone !== undefined && (typeof a.timezone !== 'string' || !TZ_OK(a.timezone))) errors.push('The appointments time zone is not a valid IANA name (for example Asia/Kolkata).');
+    else { const f = fieldsOf(a.fields, 'Appointments'); out.appointments = { enabled: a.enabled, ...(a.timezone ? { timezone: a.timezone as string } : {}), ...(typeof a.enforce_working_hours === 'boolean' ? { enforce_working_hours: a.enforce_working_hours } : {}), ...(f ? { fields: f } : {}) }; }
+  }
+  const i = raw.inventory;
+  if (i !== undefined) {
+    if (!isObj(i) || Object.keys(i).some(k => !['enabled', 'allow_negative_stock', 'track_batches', 'track_expiry', 'block_expired', 'fields'].includes(k)) || typeof i.enabled !== 'boolean'
+      || !['allow_negative_stock', 'track_batches', 'track_expiry', 'block_expired'].every(k => bool(i, k))) errors.push('The inventory settings are invalid.');
+    else if (i.track_expiry === true && i.track_batches !== true) errors.push('Expiry tracking needs batch tracking.');
+    else { const f = fieldsOf(i.fields, 'Inventory'); const o: NonNullable<OperationsConfig['inventory']> = { enabled: i.enabled };
+      for (const k of ['allow_negative_stock', 'track_batches', 'track_expiry', 'block_expired'] as const) { const v = i[k]; if (typeof v === 'boolean') o[k] = v; } if (f) o.fields = f; out.inventory = o; }
+  }
+  const b = raw.billing;
+  if (b !== undefined) {
+    const bad = !isObj(b) || Object.keys(b).some(k => !['enabled', 'currency', 'invoice_prefix', 'credit_note_prefix', 'default_due_days', 'taxes'].includes(k)) || typeof b.enabled !== 'boolean'
+      || (b.currency !== undefined && !/^[A-Z]{3}$/.test(String(b.currency))) || (b.invoice_prefix !== undefined && !/^[A-Z0-9]{1,8}$/.test(String(b.invoice_prefix))) || (b.credit_note_prefix !== undefined && !/^[A-Z0-9]{1,8}$/.test(String(b.credit_note_prefix)))
+      || (b.default_due_days !== undefined && (!Number.isInteger(b.default_due_days) || (b.default_due_days as number) < 0 || (b.default_due_days as number) > 365));
+    if (bad || !isObj(b)) errors.push('The billing settings are invalid.');
+    else {
+      const taxes: TaxConfig[] = [];
+      if (b.taxes !== undefined) {
+        if (!Array.isArray(b.taxes) || b.taxes.length > 10) errors.push('Taxes must be a list of at most 10.');
+        else for (const t of b.taxes) {
+          if (!isObj(t) || Object.keys(t).some(k => !['key', 'name', 'rate'].includes(k)) || !/^[a-z][a-z0-9_]{0,19}$/.test(String(t.key)) || text(t.name).length < 1 || text(t.name).length > 40
+            || typeof t.rate !== 'string' || !/^(100(\.0{1,3})?|[0-9]{1,2}(\.[0-9]{1,3})?)$/.test(t.rate)) { errors.push('Every tax needs a key, a name and a rate between 0 and 100 given as text (for example "18" or "5.5").'); continue; }
+          if (taxes.some(x => x.key === t.key)) { errors.push(`Duplicate tax "${String(t.key)}".`); continue; }
+          taxes.push({ key: t.key as string, name: text(t.name), rate: t.rate });
+        }
+      }
+      const o: NonNullable<OperationsConfig["billing"]> = { enabled: b.enabled === true };
+      if (b.currency) o.currency = b.currency as string; if (b.invoice_prefix) o.invoice_prefix = b.invoice_prefix as string; if (b.credit_note_prefix) o.credit_note_prefix = b.credit_note_prefix as string;
+      if (typeof b.default_due_days === 'number') o.default_due_days = b.default_due_days; if (b.taxes !== undefined) o.taxes = taxes; out.billing = o;
+    }
+  }
+  return errors.length ? { ok: false, errors: [...new Set(errors)] } : { ok: true, value: out };
+}
+
 export function validateConfig(input: unknown): { ok: true; value: WorkspaceConfig } | { ok: false; errors: string[] } {
   const errors: string[] = [];
   if (!isObj(input) || input.schemaVersion !== 1) return { ok: false, errors: ['Not a valid workspace configuration.'] };
@@ -75,8 +128,11 @@ export function validateConfig(input: unknown): { ok: true; value: WorkspaceConf
     }
     objects.push({ key, label, fields });
   }
+  let opsValue: OperationsConfig | undefined;
+  if (input.operations !== undefined) { const r = validateOperations(input.operations); if (r.ok) opsValue = r.value; else errors.push(...r.errors); }
   if (errors.length) return { ok: false, errors: [...new Set(errors)] };
   const cfg: WorkspaceConfig = { schemaVersion: 1, businessName: text(input.businessName), modules, objects, pipeline: { stages } };
+  if (opsValue && Object.keys(opsValue).length) cfg.operations = opsValue;
   const description = typeof input.description === 'string' ? input.description.trim() : '';
   if (description) cfg.description = description.slice(0, 1000);
   if (typeof input.preset === 'string' && /^[a-z0-9_-]{1,40}$/.test(input.preset)) cfg.preset = input.preset;
@@ -159,5 +215,31 @@ export function diffConfig(from: WorkspaceConfig, to: WorkspaceConfig): string[]
     for (const f of p.fields) if (!nf.has(f.key)) out.push(`"${o.label}": remove field "${f.label}"`);
   }
   for (const o of from.objects) if (!to_.has(o.key)) out.push(`Remove record type "${o.label}"`);
+  out.push(...diffOperations(from.operations ?? {}, to.operations ?? {}));
+  return out;
+}
+
+const OPS_LABEL = { appointments: 'Appointments', inventory: 'Inventory', billing: 'Billing' } as const;
+/** Plain-language differences in the operations block (enablement, rules, taxes, custom fields). */
+export function diffOperations(from: OperationsConfig, to: OperationsConfig): string[] {
+  const out: string[] = [];
+  for (const k of ['appointments', 'inventory', 'billing'] as const) {
+    const a = from[k] as Record<string, unknown> | undefined, b = to[k] as Record<string, unknown> | undefined, L = OPS_LABEL[k];
+    if (!a && !b) continue;
+    if (!!a?.enabled !== !!b?.enabled) out.push(b?.enabled ? `Enable the ${L} module` : `Disable the ${L} module (existing data is kept)`);
+    for (const key of Object.keys({ ...(a ?? {}), ...(b ?? {}) })) {
+      if (key === 'enabled' || key === 'taxes' || key === 'fields') continue;
+      if (JSON.stringify(a?.[key]) !== JSON.stringify(b?.[key])) out.push(`${L}: set ${key.replace(/_/g, ' ')} to ${JSON.stringify(b?.[key] ?? null)}`);
+    }
+    if (k === 'billing') {
+      const ft = new Map(((a?.taxes as TaxConfig[] | undefined) ?? []).map(t => [t.key, t])), tt = new Map(((b?.taxes as TaxConfig[] | undefined) ?? []).map(t => [t.key, t]));
+      for (const [key, t] of tt) { const o = ft.get(key); if (!o) out.push(`Billing: add tax "${t.name}" at ${t.rate}%`); else if (o.rate !== t.rate || o.name !== t.name) out.push(`Billing: change tax "${o.name}" to "${t.name}" at ${t.rate}% (issued invoices keep their original rate)`); }
+      for (const [key, t] of ft) if (!tt.has(key)) out.push(`Billing: remove tax "${t.name}" (issued invoices keep their original rate)`);
+    } else {
+      const ff = new Map(((a?.fields as FieldConfig[] | undefined) ?? []).map(f => [f.key, f])), tf = new Map(((b?.fields as FieldConfig[] | undefined) ?? []).map(f => [f.key, f]));
+      for (const [key, f] of tf) { const o = ff.get(key); if (!o) out.push(`${L}: add custom field "${f.label}"`); else { if (o.label !== f.label) out.push(`${L}: rename custom field "${o.label}" to "${f.label}"`); if (!!o.archived !== !!f.archived) out.push(`${L}: ${f.archived ? 'hide' : 'show'} custom field "${f.label}"`); } }
+      for (const [key, f] of ff) if (!tf.has(key)) out.push(`${L}: remove custom field "${f.label}" (not allowed once published: hide it instead)`);
+    }
+  }
   return out;
 }

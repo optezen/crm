@@ -42,3 +42,15 @@ dialog{border:1px solid var(--line);border-radius:var(--radius);padding:0;width:
 .ok{font-size:13px;color:var(--accent)}.err{font-size:13px;color:#b42318}
 .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 16px;margin:0}.kv dt{color:var(--muted);font-size:13px}.kv dd{margin:0}
 details>summary{cursor:pointer;font-weight:600;margin-bottom:12px}.task{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}.task:last-child{border-bottom:0}.inline{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.inline>.field{flex:1;min-width:160px}
+/* AI assistant panel */
+.ai-launch kbd{font-size:11px}
+.ai-panel{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);background:var(--surface);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(28,25,23,.08);display:flex;flex-direction:column;z-index:40}
+.ai-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}.ai-head select.input{min-width:0;max-width:150px;padding:6px 8px;font-size:13px}.ai-head .btn{padding:6px 10px}
+.ai-body{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.ai-msg{display:flex;flex-direction:column;gap:8px;max-width:100%}.ai-msg.user{align-items:flex-end}
+.ai-bubble{white-space:pre-wrap;overflow-wrap:anywhere;border-radius:12px;padding:10px 14px;font-size:14px;background:#f5f5f4;max-width:92%}.ai-msg.user .ai-bubble{background:var(--accent);color:var(--accent-ink)}
+.ai-example{justify-content:flex-start;text-align:left;font-size:13px}
+.ai-proposal{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:13px;background:#fff}.ai-proposal ul{margin:0;padding-left:18px}
+.ai-warn{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:8px 10px;font-size:13px}
+.ai-compose{display:flex;gap:8px;align-items:flex-end;padding:12px 16px;border-top:1px solid var(--line)}.ai-compose textarea.input{min-height:0;resize:none}
+@media(max-width:800px){.ai-launch kbd{display:none}}

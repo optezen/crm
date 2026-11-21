@@ -7,6 +7,7 @@ import type { VersionRow } from '../../../lib/workspace/builder';
 import { Card } from '../../../components/ui/Card';
 import { FieldInput } from '../../../components/ui/FieldInput';
 import { LocalTime } from '../../../components/ui/LocalTime';
+import { OperationsSettings } from './OperationsSettings';
 import { aiDraftBuilderAction, discardAction, publishAction, restoreAction, saveDraftAction, type BuilderResult } from './actions';
 
 const isCore = (key: string) => CORE_MODULES.some(c => c.key === key);
@@ -15,7 +16,7 @@ const STATUS_LABEL: Record<ModuleStatus, string> = { active: 'Active', planned: 
 const newObject = (key: string, label: string): ObjectConfig => ({ key, label, fields: [{ key: 'name', label: 'Name', kind: 'text', required: true }] });
 
 /** Field list for one record type. Published fields keep their type (records may use it) and can be hidden but not removed. */
-function FieldsEditor({ obj, pub, onChange }: { obj: ObjectConfig; pub?: ObjectConfig; onChange: (o: ObjectConfig) => void }) {
+export function FieldsEditor({ obj, pub, onChange }: { obj: ObjectConfig; pub?: ObjectConfig; onChange: (o: ObjectConfig) => void }) {
   const [name, setName] = useState(''), [kind, setKind] = useState<FieldKind>('text');
   const setField = (i: number, patch: Partial<FieldConfig>) => onChange({ ...obj, fields: obj.fields.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
   const clean = (f: FieldConfig): FieldConfig => { const { options, currency, ...rest } = f; return { ...rest, ...(f.kind === 'choice' ? { options: options?.length ? options : ['Option 1'] } : {}), ...(f.kind === 'currency' ? { currency: currency ?? DEFAULT_CURRENCY } : {}) }; };
@@ -97,6 +98,8 @@ export function BuilderEditor({ published, draft, aiAvailable, versions }: { pub
           {!published.objects.some(x => x.key === o.key) && <button type="button" className="btn" onClick={() => set({ objects: cfg.objects.filter(x => x.key !== o.key) })}>Remove</button>}</div>
         <FieldsEditor obj={o} pub={published.objects.find(x => x.key === o.key)} onChange={setObject} /></div>)}</div>
     </Card>}
+
+    <OperationsSettings cfg={cfg} published={published} onChange={operations => set({ operations })} />
 
     <Card title="Lead pipeline" description="Stages a lead moves through, in order. A stage can only be removed when no lead is in it; move those leads first.">
       <div className="stack" style={{ gap: 8 }}>

@@ -6,9 +6,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const db = new PGlite({ extensions: { pgcrypto } });
+const db = new PGlite({ extensions: { pgcrypto, btree_gist } });
 const id = n => `00000000-0000-0000-0000-0000000000${n}`;
 const [OWN, OWN2, MGR, EMP, EMP2, ADM, NEWBIE] = ['a1', 'b2', 'c3', 'd4', 'e5', 'f6', '07'].map(id);
 const def = n => ({ schemaVersion: 1, businessName: n, modules: [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }], objects: [], pipeline: { stages: ['New enquiry', 'Contacted', 'Won / Lost'] } });
@@ -182,7 +183,7 @@ test('notes: stored in activity history, validated, event emitted', async () => 
   await rpc(OWN, 'crm_add_note', ORG1, l, '  Called, no answer  ');
   await fails(rpc(OWN, 'crm_add_note', ORG1, l, '   '), '22023');
   await fails(rpc(OWN, 'crm_add_note', ORG1, l, 'x'.repeat(4001)), '22023');
-  const acts = await rows(OWN, 'select kind, body, actor_id from public.lead_activities where lead_id=$1 order by created_at, id', [l]);
+  const acts = await rows(OWN, 'select kind, body, actor_id from public.lead_activities where lead_id=$1 order by created_at, seq', [l]);
   assert.deepEqual(acts.map(a => a.kind), ['created', 'note']); assert.equal(acts[1].body, 'Called, no answer'); assert.equal(acts[1].actor_id, OWN);
   assert.equal((await events(ORG1, 'lead.note_added')).filter(e => e.aggregate_id === l).length, 1);
 });

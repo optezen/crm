@@ -7,10 +7,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { validateConfig } from '../src/lib/workspace/schema.ts';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
 const files = readdirSync(dir).filter(f => f.endsWith('.sql')).sort();
-const db = new PGlite({ extensions: { pgcrypto } });
+const db = new PGlite({ extensions: { pgcrypto, btree_gist } });
 const id = n => `00000000-0000-0000-0000-0000000000${n}`;
 const [LEG, LEG2, NEW, EMP, MGR, OTHER] = ['a1', 'b2', 'c3', 'd4', 'e5', 'f6'].map(id);
 const CORE = [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }];

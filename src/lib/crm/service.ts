@@ -45,7 +45,7 @@ export async function getLead(ctx: CrmContext, leadId: string): Promise<Result<{
   if (error) return dbError(error);
   if (!lead) return fail(NOT_FOUND); // missing and not-visible look identical
   const [acts, tasks] = await Promise.all([
-    ctx.db.from('lead_activities').select('id, kind, body, meta, actor_id, created_at').eq('organization_id', ctx.organizationId).eq('lead_id', leadId).order('created_at', { ascending: false }).order('id').limit(200),
+    ctx.db.from('lead_activities').select('id, kind, body, meta, actor_id, created_at').eq('organization_id', ctx.organizationId).eq('lead_id', leadId).order('created_at', { ascending: false }).order('seq', { ascending: false }).limit(200),
     ctx.db.from('tasks').select('id, lead_id, title, owner_id, due_date, status, outcome, completed_at').eq('organization_id', ctx.organizationId).eq('lead_id', leadId).order('status', { ascending: false }).order('due_date').limit(200),
   ]);
   if (acts.error) return dbError(acts.error);

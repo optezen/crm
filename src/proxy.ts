@@ -22,4 +22,5 @@ export async function proxy(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'] };
+// webhooks carry their own credentials and have no session, so they skip the session refresh
+export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|api/webhooks).*)'] };

@@ -71,3 +71,26 @@ Apply `0006_custom_modules.sql` **before** deploying the app version that has cu
 - The new app expects `record_create`, `record_update` and `restore_workspace_revision`; the previous app version keeps working against the migrated database except that Builder publishes now also enforce data protection.
 - Requires 0005 (`create_workspace`, drafts). If 0005 has not been applied yet, apply 0005 then 0006 in order.
 - Order: apply migrations, then deploy. Nothing else to configure; no new environment variables.
+
+## Deploying 0007 (Automation Engine)
+
+- Apply `0007_automation_engine.sql` after `0005` and `0006`. It is additive: new tables, new functions, `organization_members.active` (default true), two columns on `tasks`, and it marks all existing `domain_events` as processed so history never triggers new automations.
+- The web app needs no new environment variables. Automations only run when the worker is running: see `docs/AUTOMATION.md` (service-role key goes on the worker only).
+
+## Deploying 0008 (Integration Hub)
+
+- Apply `0008_integration_hub.sql` after 0005-0007. Additive: 10 new tables, new functions, extra columns/status values on `integration_requests` (0007), no changes to earlier objects.
+- Website Forms work with no new environment variables. Meta/WhatsApp need the variables listed in `docs/INTEGRATIONS.md`; register the gateway secret hash once with `integration_set_gateway_secret`.
+- Run `worker/integration-worker.mjs` for Meta lead retrieval, WhatsApp sending and delivery statuses.
+
+## Deploying 0009 (AI Assistant + hardening)
+
+- Apply `0009_ai_assistant.sql` after 0005-0008. Additive: `lead_activities.seq`, six `ai_*` tables, `ai_tool_*` read functions, and replacements of three 0008 functions (`integration_submit`, `integration_ingest_form`, `integration_set_config`).
+- Behaviour changes to know about: Website Forms now refuse `?key=` URL credentials unless the owner enables them per connection; invalid phone/email values are labelled "unverified" in the lead summary and the lead name is never derived from them.
+- Set `ANTHROPIC_API_KEY` on the web app to turn the assistant on. Without it the panel is disabled and nothing is sent anywhere.
+
+## Deploying 0010-0013 (Business Operations)
+
+- Apply `0010` to `0013` in order after `0009`. 0010 runs `create extension if not exists btree_gist` (needed for the appointment overlap constraint). They add appointment, inventory and billing tables (all RLS, SELECT-only for clients), their `SECURITY DEFINER` write functions, `ai_tool_*` read functions, and replace `automation_validate`, `automation_publish`, `automation_context` (from 0007) and wrap the workspace validator / data-protection check.
+- All modules are OFF until an owner enables them in Builder -> Business operations and publishes. No environment variables are needed.
+- Behavior change: automations on `appointment.created` and `payment.received` are no longer refused as "not available yet"; they are refused only while the matching module is disabled.

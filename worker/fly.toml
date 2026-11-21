@@ -1,0 +1,16 @@
+# Example only (not deployed). Two always-on processes from the same image. Secrets:
+#   fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... INTEGRATION_ENCRYPTION_KEY=...
+app = "optizen-workers"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  automation = "node worker/automation-worker.mjs"
+  integrations = "node worker/integration-worker.mjs"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  processes = ["automation", "integrations"]

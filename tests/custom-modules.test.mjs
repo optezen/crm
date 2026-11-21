@@ -5,11 +5,12 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 import { validateRecord } from '../src/lib/records/validate.ts';
 import { slug, fieldSlug, validateConfig } from '../src/lib/workspace/schema.ts';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const db = new PGlite({ extensions: { pgcrypto } });
+const db = new PGlite({ extensions: { pgcrypto, btree_gist } });
 const id = n => `00000000-0000-0000-0000-0000000000${n}`;
 const [OWN, OWN2, EMP, EMP2, MGR, ADM] = ['a1', 'b2', 'c3', 'd4', 'e5', 'f6'].map(id);
 const CORE = [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }];

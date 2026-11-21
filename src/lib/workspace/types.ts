@@ -13,6 +13,15 @@ export const DEFAULT_CURRENCY = 'INR';
 export type FieldConfig = { key: string; label: string; kind: FieldKind; required?: boolean; archived?: boolean; options?: string[]; currency?: string };
 export type ObjectConfig = { key: string; label: string; fields: FieldConfig[] };
 
+/** Optional business-operations modules. Enablement and rules are part of the versioned configuration (drafts, publish, rollback); the data lives in ordinary tables. */
+export type OpsModuleKey = 'appointments' | 'inventory' | 'billing';
+export type TaxConfig = { key: string; name: string; rate: string };
+export type OperationsConfig = {
+  appointments?: { enabled: boolean; timezone?: string; enforce_working_hours?: boolean; fields?: FieldConfig[] };
+  inventory?: { enabled: boolean; allow_negative_stock?: boolean; track_batches?: boolean; track_expiry?: boolean; block_expired?: boolean; fields?: FieldConfig[] };
+  billing?: { enabled: boolean; currency?: string; invoice_prefix?: string; credit_note_prefix?: string; default_due_days?: number; taxes?: TaxConfig[] };
+};
+
 /** Modules the CRM engine runs on. Every workspace has them; they cannot be removed in Builder. */
 export const CORE_MODULES = [{ key: 'overview', label: 'Overview' }, { key: 'leads', label: 'Leads' }] as const;
 
@@ -31,6 +40,8 @@ export type WorkspaceConfig = {
   modules: ModuleConfig[];
   objects: ObjectConfig[];
   pipeline: { stages: string[] };
+  /** Optional operations modules (appointments, inventory, billing). Absent = all disabled. */
+  operations?: OperationsConfig;
 };
 
 export type Membership = { organizationId: string; role: Role };

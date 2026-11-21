@@ -6,9 +6,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const db = new PGlite({ extensions: { pgcrypto } });
+const db = new PGlite({ extensions: { pgcrypto, btree_gist } });
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c';
 const def = (n = 'X') => ({ schemaVersion: 1, businessName: n, modules: [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }], objects: [], pipeline: { stages: ['a', 'b'] } });
 
@@ -36,7 +37,7 @@ before(async () => {
 
 test('all migrations apply in order', async () => {
   const r = await db.query(`select count(*)::int n from pg_tables where schemaname='public'`);
-  assert.equal(r.rows[0].n, 10); // 4 foundation + contacts, leads, lead_activities, tasks, domain_events (0004) + records (0006)
+  assert.equal(r.rows[0].n, 50); // 4 foundation + contacts, leads, lead_activities, tasks, domain_events (0004) + records (0006) + 7 automation (0007) + 10 integration (0008) + 6 ai (0009) + 17 operations (0010-0012)
 });
 
 test('anon has no table privileges and cannot call create_workspace', async () => {

@@ -37,7 +37,7 @@ before(async () => {
 
 test('all migrations apply in order', async () => {
   const r = await db.query(`select count(*)::int n from pg_tables where schemaname='public'`);
-  assert.equal(r.rows[0].n, 50); // 4 foundation + contacts, leads, lead_activities, tasks, domain_events (0004) + records (0006) + 7 automation (0007) + 10 integration (0008) + 6 ai (0009) + 17 operations (0010-0012)
+  assert.equal(r.rows[0].n, 55); // 4 foundation + contacts, leads, lead_activities, tasks, domain_events (0004) + records (0006) + 7 automation (0007) + 10 integration (0008) + 6 ai (0009) + 17 operations (0010-0012) + 3 permissions (0014) + 2 dashboards (0015)
 });
 
 test('anon has no table privileges and cannot call create_workspace', async () => {

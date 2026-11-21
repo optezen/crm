@@ -19,6 +19,7 @@ export default async function Team() {
   const roles = ctx.role === 'owner' ? ASSIGNABLE_ROLES : ASSIGNABLE_ROLES.filter(r => r !== 'admin');
   return <div className="stack">
     <div className="top"><div><span className="eyebrow">Optizen Builder</span><h1>Team</h1><p className="muted">Owners and admins manage who can work in this workspace. Managers can assign any lead; employees see their own and unassigned leads. Inactive members are skipped by automatic assignment.</p></div></div>
+    {canBuild(ctx.role) && <p><a className="btn" href="/team/roles">Roles, permissions and branches</a></p>}
     <Card title="Add a team member" description="They must have signed in to Optizen once with this email.">
       <ActionForm action={addMemberAction} submit="Add to team" resetOnSuccess>
         <div className="form-grid">

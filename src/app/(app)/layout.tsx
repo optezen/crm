@@ -24,13 +24,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const active = s.config.modules.filter(m => m.status === 'active');
   const ops = OPS_MODULES.filter(m => opsEnabled(s.config, m.key) && opsAccess(s.role, m.key));
   const planned = s.config.modules.filter(m => m.status === 'planned');
-  const items = [...active.map(m => ({ label: m.label, href: m.key === 'overview' ? '/work' : `/work/${m.key}` })), ...ops.map(m => ({ label: m.label, href: m.href })), { label: 'Notifications', href: '/notifications' }, ...(canBuild(s.role) ? [{ label: 'Builder', href: '/builder' }, { label: 'Automations', href: '/automations' }, { label: 'Connections', href: '/builder/connections' }, { label: 'Team', href: '/team' }] : [])];
+  const analyticsNav = [{ label: 'Dashboards', href: '/dashboards' }, { label: 'Reports', href: '/reports' }];
+  const items = [...analyticsNav, ...active.map(m => ({ label: m.label, href: m.key === 'overview' ? '/work' : `/work/${m.key}` })), ...ops.map(m => ({ label: m.label, href: m.href })), { label: 'Notifications', href: '/notifications' }, ...(canBuild(s.role) ? [{ label: 'Builder', href: '/builder' }, { label: 'Automations', href: '/automations' }, { label: 'Connections', href: '/builder/connections' }, { label: 'Team', href: '/team' }] : [])];
   return <div className="shell">
     <aside className="side"><div className="brand">{s.config.businessName}<small>Optizen</small></div>
       <nav className="nav" aria-label="Workspace">
         <span className="eyebrow">Work</span>
         {active.map(m => <NavLink key={m.key} href={m.key === 'overview' ? '/work' : `/work/${m.key}`}>{m.label}</NavLink>)}
         {ops.map(m => <NavLink key={m.key} href={m.href}>{m.label}</NavLink>)}
+        <span className="eyebrow">Insights</span><NavLink href="/dashboards">Dashboards</NavLink><NavLink href="/reports">Reports</NavLink>
         {planned.length > 0 && <span className="eyebrow">Coming later</span>}
         {planned.map(m => <span key={m.key} className="planned">{m.label}<span className="tag">Planned</span></span>)}
         {canBuild(s.role) && <><span className="eyebrow">Configure</span><NavLink href="/builder">Builder</NavLink><NavLink href="/automations">Automations</NavLink><NavLink href="/builder/connections">Connections</NavLink><NavLink href="/team">Team</NavLink></>}

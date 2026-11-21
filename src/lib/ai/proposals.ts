@@ -6,9 +6,9 @@ import { validateConfig } from '../workspace/schema.ts';
 import { validateAutomation } from '../automation/validate.ts';
 import type { Rpc, ToolCtx } from './tools.ts';
 
-export type ProposalStep = 'save_draft' | 'publish' | 'publish_enable' | 'publish_disabled' | 'reject';
+export type ProposalStep = 'save_draft' | 'publish' | 'publish_enable' | 'publish_disabled' | 'reject' | 'save_dashboard';
 export type Applied = { ok: true; message: string; status: string } | { ok: false; error: string };
-type Proposal = { id: string; kind: 'module_config' | 'workflow'; title: string; payload: Record<string, unknown>; base_revision: number | null; status: string; workflow_id: string | null };
+type Proposal = { id: string; kind: 'module_config' | 'workflow' | 'dashboard'; title: string; payload: Record<string, unknown>; base_revision: number | null; status: string; workflow_id: string | null };
 const safe = (e: { code?: string; message: string }) => (['22023', '23505', '42501', 'P0002'].includes(e.code ?? '') ? e.message : 'Something went wrong. Please try again.');
 const norm = (c: WorkspaceConfig) => JSON.stringify({ ...c, businessName: '', industryTemplate: undefined });
 
@@ -22,6 +22,15 @@ export async function applyProposal(ctx: Pick<ToolCtx, 'org' | 'rpc' | 'loadConf
 
   if (step === 'reject') { const r = await setStatus('rejected', null); return r.error ? bad(safe(r.error)) : { ok: true, status: 'rejected', message: 'Dismissed. Nothing was changed.' }; }
 
+  if (p.kind === 'dashboard') {
+    if (step !== 'save_dashboard') return bad('That action does not apply to this proposal.');
+    if (p.status !== 'pending') return bad('This proposal was already handled.');
+    // the Dashboard Builder service itself (dashboard_save) validates every widget query and checks the APPROVING user's permissions again
+    const saved = await rpc('dashboard_save', { p_org: ctx.org, p_id: null, p_name: String(p.payload.name ?? p.title), p_description: (p.payload.description as string | null) ?? null, p_visibility: String(p.payload.visibility ?? 'personal'), p_widgets: p.payload.widgets, p_version: null });
+    if (saved.error) return bad(safe(saved.error));
+    const st = await setStatus('published', { dashboard_id: (saved.data as { id: string }).id }); if (st.error) return bad(safe(st.error));
+    return { ok: true, status: 'published', message: 'Dashboard created. Open Dashboards to view and adjust it.' };
+  }
   if (p.kind === 'module_config') {
     const cfgs = await ctx.loadConfigs();
     if (step === 'save_draft') {

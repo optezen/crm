@@ -55,3 +55,7 @@ Owners/admins connect services at `/builder/connections`: Website Forms (complet
 ## Business operations
 
 Optional Appointments, Inventory and Billing modules, enabled per workspace in Builder. See [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+## Dashboards, reports and permissions
+
+Build dashboards from real data at `/dashboards`, use the report library at `/reports`, and manage roles, branches and permissions at `/team/roles`. See [docs/ANALYTICS_AND_PERMISSIONS.md](docs/ANALYTICS_AND_PERMISSIONS.md).

@@ -94,3 +94,8 @@ Apply `0006_custom_modules.sql` **before** deploying the app version that has cu
 - Apply `0010` to `0013` in order after `0009`. 0010 runs `create extension if not exists btree_gist` (needed for the appointment overlap constraint). They add appointment, inventory and billing tables (all RLS, SELECT-only for clients), their `SECURITY DEFINER` write functions, `ai_tool_*` read functions, and replace `automation_validate`, `automation_publish`, `automation_context` (from 0007) and wrap the workspace validator / data-protection check.
 - All modules are OFF until an owner enables them in Builder -> Business operations and publishes. No environment variables are needed.
 - Behavior change: automations on `appointment.created` and `payment.received` are no longer refused as "not available yet"; they are refused only while the matching module is disabled.
+
+## Deploying 0014-0016 (Permissions, Analytics, Operations fixes)
+
+- Apply `0014`, `0015`, `0016` in order after `0013`. 0014 adds restrictive RLS policies and write-guard triggers to many existing tables: it does not change what members WITHOUT a custom role can do, but test it against a copy of production first. 0014/0015 replace `integration_admin`, `automation_publish`, `automation_execute`, `ai_set_proposal_status` and `ai_create_proposal` with versions that add checks.
+- No new environment variables. Nothing is applied to production by the repository.

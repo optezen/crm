@@ -1,12 +1,13 @@
 import { getWorkspaceState } from '../../../../lib/workspace/service';
 import { supabaseServer } from '../../../../lib/supabase/server';
-import { batches, locations, movements, productFlags, products, stockLevels, suppliers } from '../../../../lib/operations/service';
+import { batches, locations, movements, productDetails, productFlags, products, stockLevels, suppliers } from '../../../../lib/operations/service';
 import { opsManage } from '../../../../lib/operations/ops';
 import { OpsGate } from '../../../../components/OpsGate';
 import { Card } from '../../../../components/ui/Card';
 import { Notice } from '../../../../components/ui/Notice';
 import { LocalTime } from '../../../../components/ui/LocalTime';
 import { OpForm, type OpField } from '../../../../components/OpForm';
+import { ProductEditor } from '../../../../components/ProductEditor';
 
 export default async function Inventory() {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
@@ -14,7 +15,8 @@ export default async function Inventory() {
 }
 async function Body(s: Extract<Awaited<ReturnType<typeof getWorkspaceState>>, { status: 'ready' }>) {
   const db = await supabaseServer(), org = s.organizationId, cfg = s.config.operations?.inventory ?? { enabled: true }, manage = opsManage(s.role);
-  const [locs, sups, prods, levels, lots, moves, flags] = await Promise.all([locations(db, org), suppliers(db, org), products(db, org), stockLevels(db, org), batches(db, org), movements(db, org), productFlags(db, org)]);
+  const [locs, sups, prods, levels, lots, moves, flags, details] = await Promise.all([locations(db, org), suppliers(db, org), products(db, org), stockLevels(db, org), batches(db, org), movements(db, org), productFlags(db, org), productDetails(db, org)]);
+  const customFields = s.config.operations?.inventory?.fields ?? [];
   const pname = new Map(prods.map(p => [p.product_id, `${p.name} (${p.sku})`])), lname = new Map(locs.map(l => [l.id, l.name])), lot = new Map(lots.map(b => [b.id, b]));
   const activeProds = prods.filter(p => p.active), activeLocs = locs.filter(l => l.active);
   const prodOpts: [string, string][] = activeProds.map(p => [p.product_id, `${p.name} (${p.sku})`]), locOpts: [string, string][] = activeLocs.map(l => [l.id, l.name]);
@@ -43,8 +45,8 @@ async function Body(s: Extract<Awaited<ReturnType<typeof getWorkspaceState>>, { 
           { name: 'p_batch', label: 'Lot (batch-tracked products)', type: 'select', options: lotOpts }, { name: 'p_qty', label: 'Quantity', type: 'number', required: true, step: '0.001' }, { name: 'p_reason', label: 'Note' })} submit="Transfer" message="Transferred." /></Card>
       <Card title="Setup" description="Products, locations and suppliers. Nothing is pre-filled: define what your business keeps.">
         <div className="stack">
-          <OpForm fn="product_save" fixed={{ p_id: null, p_active: true, p_custom: null }} fields={f({ name: 'p_sku', label: 'SKU', required: true }, { name: 'p_name', label: 'Name', required: true }, { name: 'p_unit', label: 'Unit', placeholder: 'pcs' }, { name: 'p_threshold', label: 'Low-stock level', type: 'number', step: '0.001' },
-            ...(cfg.track_batches ? [{ name: 'p_track_batches', label: 'Track lots / batches', type: 'checkbox' as const }] : []))} submit="Add product" message="Product added." />
+          <ProductEditor fields={customFields} batchesAllowed={cfg.track_batches === true} />
+          {details.length > 0 && <div className="stack" style={{ gap: 6 }}><strong>Edit products</strong>{details.map(p => <ProductEditor key={`${p.id}-${JSON.stringify(p.custom)}-${p.name}`} product={p} fields={customFields} batchesAllowed={cfg.track_batches === true} />)}</div>}
           <OpForm fn="inventory_location_save" fixed={{ p_id: null, p_active: true }} fields={f({ name: 'p_name', label: 'Location name', required: true })} submit="Add location" message="Location added." />
           <OpForm fn="supplier_save" fixed={{ p_id: null, p_active: true }} fields={f({ name: 'p_name', label: 'Supplier name', required: true }, { name: 'p_reference', label: 'Account / reference' }, { name: 'p_notes', label: 'Notes' })} submit="Add supplier" message="Supplier added." /></div></Card></>}
     <Card title="Recent movements (ledger)"><div className="table-wrap" role="region" aria-label="Stock ledger" tabIndex={0}><table><thead><tr><th scope="col">When</th><th scope="col">Kind</th><th scope="col">Product</th><th scope="col">Location</th><th scope="col">Change</th><th scope="col">Balance</th><th scope="col">Note</th></tr></thead>

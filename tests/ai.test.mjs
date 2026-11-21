@@ -92,7 +92,7 @@ test('tool schemas: strict validation, hard limits, no organization argument, ro
     const js = toJsonSchema(t.schema); assert.equal(js.additionalProperties, false, t.name);
     assert.ok(!JSON.stringify(Object.keys(t.schema.properties)).match(/org|tenant|user_id|sql|query/i), `${t.name} has no org/sql-style argument`);
   }
-  assert.deepEqual(toolsFor('employee').map(t => t.name), ['list_leads', 'get_lead', 'list_pending_tasks', 'get_team_summary', 'list_modules', 'list_module_records', 'get_operations_status', 'list_appointments', 'get_inventory_status', 'list_stock_movements']);
+  assert.deepEqual(toolsFor('employee').map(t => t.name), ['list_leads', 'get_lead', 'list_pending_tasks', 'get_team_summary', 'list_modules', 'list_module_records', 'get_operations_status', 'list_appointments', 'get_inventory_status', 'list_stock_movements', 'get_analytics_catalog', 'query_analytics']);
   assert.ok(toolSpecs('owner').length === TOOLS.length); assert.ok(!toolSpecs('manager').some(t => /propose|connection|workflow|integration/.test(t.name)));
   // an invalid call never reaches the database
   let touched = false; const spy = { ...ctxFor('x', EMP, 'employee'), rpc: async () => { touched = true; return { data: null, error: null }; } };

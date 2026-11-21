@@ -11,14 +11,14 @@ function Proposal({ p, onChange }: { p: ProposalView; onChange: (p: ProposalView
   const router = useRouter(); const [pending, start] = useTransition(); const [note, setNote] = useState<{ ok: boolean; text: string }>();
   const pay = p.payload as { summary?: string; diff?: string[]; preview?: string[]; warnings?: string[]; built_on?: string };
   const act = (step: Parameters<typeof applyProposalAction>[1], confirmText?: string) => { if (confirmText && !confirm(confirmText)) return; start(async () => { const r = await applyProposalAction(p.id, step); setNote({ ok: r.ok, text: (r.ok ? r.message : r.error) ?? '' }); if (r.ok && r.status) { onChange({ ...p, status: r.status }); router.refresh(); } }); };
-  const lines = p.kind === 'module_config' ? pay.diff ?? [] : pay.preview ?? [];
+  const lines = p.kind === 'module_config' ? pay.diff ?? [] : p.kind === 'dashboard' ? ((pay.preview as unknown as { title: string; type: string; definition: string }[] | undefined) ?? []).map(w => `${w.title} (${w.type}): ${w.definition}`) : (pay.preview as string[] | undefined) ?? [];
   return <div className="ai-proposal" role="group" aria-label={`Proposal: ${p.title}`}>
-    <div className="row"><strong>{p.kind === 'module_config' ? 'Workspace change' : 'Automation'}: {p.title}</strong><span className={`badge ${p.status === 'rejected' ? 'done' : p.status === 'pending' ? 'late' : ''}`}>{STATUS[p.status] ?? p.status}</span></div>
+    <div className="row"><strong>{p.kind === 'module_config' ? 'Workspace change' : p.kind === 'dashboard' ? 'Dashboard' : 'Automation'}: {p.title}</strong><span className={`badge ${p.status === 'rejected' ? 'done' : p.status === 'pending' ? 'late' : ''}`}>{STATUS[p.status] ?? p.status}</span></div>
     {pay.summary && <p className="muted">{pay.summary}</p>}
     <ul>{lines.map(l => <li key={l}>{l}</li>)}</ul>
     {(pay.warnings ?? []).map(w => <p key={w} className="ai-warn">{w}</p>)}
     {p.status === 'pending' && <div className="row">
-      <button type="button" className="btn primary" disabled={pending} onClick={() => act('save_draft')}>{p.kind === 'module_config' ? 'Approve: save as draft' : 'Approve: save as draft'}</button>
+      <button type="button" className="btn primary" disabled={pending} onClick={() => act(p.kind === 'dashboard' ? 'save_dashboard' : 'save_draft')}>{p.kind === 'dashboard' ? 'Approve: create dashboard' : 'Approve: save as draft'}</button>
       <button type="button" className="btn" disabled={pending} onClick={() => act('reject')}>Dismiss</button></div>}
     {p.status === 'draft_saved' && (p.kind === 'module_config'
       ? <div className="row"><button type="button" className="btn primary" disabled={pending} onClick={() => act('publish', 'Publish this configuration now? It becomes live for everyone. You can roll back from the Builder history.')}>Publish now</button><a className="btn" href="/builder">Review in Builder</a><button type="button" className="btn" disabled={pending} onClick={() => act('reject')}>Dismiss</button></div>

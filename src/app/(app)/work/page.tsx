@@ -1,32 +1,24 @@
-import Link from 'next/link';
 import { getWorkspaceState } from '../../../lib/workspace/service';
 import { getCrmContext } from '../../../lib/crm/context';
-import { myOpenTasks, stageCounts } from '../../../lib/crm/service';
-import { Card } from '../../../components/ui/Card';
+import { stageCounts } from '../../../lib/crm/service';
+import { homeSummary, memberNames } from '../../../lib/ux/service';
+import { OPS_MODULES, opsAccess, opsEnabled } from '../../../lib/operations/ops';
+import { supabaseServer } from '../../../lib/supabase/server';
 import { Notice } from '../../../components/ui/Notice';
+import { HomeView } from '../../../components/ux/HomeView';
+import { canBuild } from '../../../lib/workspace/resolve';
 
-const fmtDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
 
+/** Work Mode home. Role-aware and built only from the signed-in user's own data: nothing here is sample data, and a module that is off or not allowed for the role is simply absent. */
 export default async function Work() {
   const s = await getWorkspaceState(); if (s.status !== 'ready') return null;
-  const leads = s.config.modules.some(m => m.key === 'leads' && m.status === 'active');
-  const ctx = leads ? await getCrmContext() : null;
-  const [counts, tasks] = ctx ? await Promise.all([stageCounts(ctx), myOpenTasks(ctx)]) : [null, null];
-  const today = new Date().toISOString().slice(0, 10);
-  return <div className="stack">
-    <div className="top"><div><span className="eyebrow">Optizen Work mode</span><h1>{s.config.businessName}</h1><p className="muted">Your day-to-day workspace.</p></div></div>
-    {(counts && !counts.ok) || (tasks && !tasks.ok) ? <Notice title="Some data could not be loaded">Please refresh the page.</Notice> : null}
-    <div className="grid">
-      <Card title="Pipeline" description={counts?.ok ? 'Leads you can see, by stage.' : 'Stages from your template.'}>
-        <ol style={{ margin: 0, paddingLeft: 20 }}>{s.config.pipeline.stages.map(x => <li key={x}>{x}{counts?.ok && <> — <Link href={`/work/leads?stage=${encodeURIComponent(x)}`}>{counts.value[x] ?? 0}</Link></>}</li>)}</ol>
-      </Card>
-      {tasks?.ok
-        ? <Card title="My follow-ups" description="Open tasks assigned to you, soonest first.">
-            {tasks.value.length === 0 ? <p className="muted">Nothing due. You are all caught up.</p>
-              : <ul style={{ margin: 0, paddingLeft: 20 }}>{tasks.value.map(t => <li key={t.id}>{t.leadName ? <Link href={`/work/leads/${t.leadId}`}>{t.title}</Link> : t.title}{t.leadName && ` · ${t.leadName}`} <span className={t.dueDate < today ? 'badge late' : 'badge'}>{fmtDate(t.dueDate)}</span></li>)}</ul>}
-          </Card>
-        : <Card title="Records" description="Types of information you track."><ul style={{ margin: 0, paddingLeft: 20 }}>{s.config.objects.map(o => <li key={o.key}>{o.label}</li>)}</ul></Card>}
-    </div>
-    <Notice title="AI assistance and reporting are not connected yet">Everything shown above is live data from your workspace; nothing is sample data.</Notice>
-  </div>;
+  const db = await supabaseServer(); const tz = s.config.operations?.appointments?.timezone ?? 'UTC';
+  await db.rpc('notifications_generate_overdue', { p_org: s.organizationId }); // idempotent; in-app only (there is no background sender)
+  const leadsOn = s.config.modules.some(m => m.key === 'leads' && m.status === 'active'); const ctx = leadsOn ? await getCrmContext() : null;
+  const [h, names, counts] = await Promise.all([homeSummary(db, s.organizationId, tz), memberNames(db, s.organizationId), ctx && s.role !== 'employee' ? stageCounts(ctx) : null]);
+  if (!h.ok) return <Notice title="Your home screen could not be loaded">Please refresh the page. If it keeps happening, sign out and back in.</Notice>;
+  const d = h.value; const manager = s.role !== 'employee'; const builder = canBuild(s.role);
+  const custom = s.config.modules.filter(m => m.status === 'active' && !['overview', 'leads'].includes(m.key)).slice(0, 3).map(m => ({ key: m.key, label: m.label }));
+  const ops = OPS_MODULES.filter(m => opsEnabled(s.config, m.key) && opsAccess(s.role, m.key));
+  return <HomeView d={d} businessName={s.config.businessName} me={names[s.userId]} manager={manager} builder={builder} leadsOn={leadsOn} tz={tz} apptOn={ops.some(m => m.key === 'appointments')} billingOn={ops.some(m => m.key === 'billing')} custom={custom} stages={s.config.pipeline.stages} counts={counts?.ok ? counts.value : null} />;
 }

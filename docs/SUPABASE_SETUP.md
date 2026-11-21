@@ -109,3 +109,5 @@ Apply `0006_custom_modules.sql` **before** deploying the app version that has cu
 ## Deploying 0018 (AI engine, sensitive-field privacy)
 - Apply `0018_ai_engine.sql` after `0017`. It adds usage reservations, request idempotency, plans, unfinished-workflow storage, and **revokes client `select` on `records.data`, `records.search_text` and `invoices.snapshot`**, and rewrites `analytics_source_info` and `ai_tool_list_module_records` to read `records_view`. Custom SQL/BI tools connecting as `authenticated` that read those columns must use `records_view` / `invoice_snapshot()`. Try it on a copy first.
 - Optional environment: `OPENAI_API_KEY` (or `OPTIZEN_SPEECH_API_KEY`) enables voice input; `OPTIZEN_SPEECH_MODEL`, `OPTIZEN_SPEECH_BASE_URL` override defaults.
+
+- Task 14: apply `0019_user_experience.sql` after 0018. It adds invitations, profiles, notification preferences/categories, notification triggers, `home_summary()` and `global_search()`. No environment variables are needed; invitations are shared as links (no email is sent). Browser tests: `npm run build && npm run test:browser` (needs `npx playwright install chromium`).

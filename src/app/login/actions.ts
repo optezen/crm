@@ -1,6 +1,7 @@
 'use server';
 import { headers } from 'next/headers';
 import { supabaseConfigured, supabaseServer } from '../../lib/supabase/server';
+import { safeNext } from '../../lib/ux/nav';
 
 export async function sendLink(_: unknown, form: FormData): Promise<{ message: string; ok: boolean }> {
   const email = String(form.get('email') ?? '').trim();
@@ -8,6 +9,6 @@ export async function sendLink(_: unknown, form: FormData): Promise<{ message: s
   if (!supabaseConfigured()) return { ok: false, message: 'Supabase is not configured.' };
   const origin = process.env.NEXT_PUBLIC_SITE_URL || (await headers()).get('origin');
   if (!origin) return { ok: false, message: 'Site URL is unknown. Set NEXT_PUBLIC_SITE_URL.' };
-  const { error } = await (await supabaseServer()).auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback` } });
+  const { error } = await (await supabaseServer()).auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback${safeNext(form.get('next')) ? `?next=${encodeURIComponent(safeNext(form.get('next'))!)}` : ''}` } });
   return error ? { ok: false, message: error.message } : { ok: true, message: 'Check your email for a sign-in link.' };
 }

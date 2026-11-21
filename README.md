@@ -67,3 +67,7 @@ Design workflows on a canvas, forms, pipelines (with a lead board) and dashboard
 ## AI engine
 
 Voice, streaming, multi-step plans, confirmed lead operations and conversational onboarding: see [docs/AI_ENGINE.md](docs/AI_ENGINE.md).
+
+## User experience
+
+Home, follow-ups, search, notifications, invitations and the Builder overview: see [docs/USER_EXPERIENCE.md](docs/USER_EXPERIENCE.md).

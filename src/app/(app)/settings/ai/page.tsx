@@ -1,4 +1,5 @@
 import { getWorkspaceState } from '../../../../lib/workspace/service';
+import { StudioNav } from '../../../../components/studio/StudioNav';
 import { supabaseServer } from '../../../../lib/supabase/server';
 import { DEFAULT_MODEL, providerFor } from '../../../../lib/ai/anthropic';
 import { speechProviderFor } from '../../../../lib/ai/speech';
@@ -22,6 +23,7 @@ export default async function AiSettings() {
   const total = u.by_day.reduce((a, d) => ({ i: a.i + Number(d.input_tokens), o: a.o + Number(d.output_tokens), r: a.r + d.requests }), { i: 0, o: 0, r: 0 });
   const bar = (used: number, limit: number | null, label: string) => { const p = pct(used, limit); return <div><div className="row" style={{ justifyContent: 'space-between' }}><span>{label}</span><span className="muted">{used.toLocaleString()} {limit ? `of ${limit.toLocaleString()}` : '(no limit)'}</span></div>{p !== null && <div role="progressbar" aria-valuenow={p} aria-valuemin={0} aria-valuemax={100} aria-label={label} style={{ height: 8, background: '#e7e5e4', borderRadius: 99 }}><div style={{ width: `${p}%`, height: 8, borderRadius: 99, background: p >= 90 ? '#b42318' : 'var(--accent)' }} /></div>}</div>; };
   return <div className="stack">
+    <StudioNav current="ai" />
     <div className="top"><div><span className="eyebrow">Optizen AI</span><h1>AI settings and usage</h1><p className="muted">Only the owner sees this page. Usage is counted before each request runs, so limits hold even when many people ask at once.</p></div></div>
     <Card title="Providers" description="Configuration status only. Keys are read from the server environment and are never shown.">
       <dl className="kv">

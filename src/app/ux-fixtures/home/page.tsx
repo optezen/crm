@@ -1,0 +1,6 @@
+import { Frame } from '../fixture';
+import { HomeView } from '../../../components/ux/HomeView';
+const d = { role: 'employee', today: '2030-01-02', tasks: [{ id: 't1', title: 'Call about the quote', due: '2030-01-01', lead_id: 'l1', lead: 'Sample Lead A', overdue: true }, { id: 't2', title: 'Send brochure', due: '2030-01-05', lead_id: 'l2', lead: 'Sample Lead B', overdue: false }], open_tasks: 2, overdue_tasks: 1,
+  leads: [{ id: 'l1', name: 'Sample Lead A', stage: 'New', updated_at: '2030-01-01T00:00:00Z' }], my_leads: 1, unassigned_leads: 0, appointments_enabled: true, appointments: [{ id: 'a1', starts_at: '2030-01-02T09:00:00Z', status: 'scheduled', type: 'Visit', contact: 'Sample Lead A' }],
+  unread: 2, notifications: [{ id: 'n1', title: 'New follow-up: Send brochure', body: 'Due 05 Jan 2030', link: '/tasks', created_at: '2030-01-01T00:00:00Z', category: 'task_assigned' }], members: 3, leads_total: 4 };
+export default function Page() { return <Frame><HomeView d={d} businessName="Fixture Co (test data)" me="Test User" manager={false} builder={false} leadsOn tz="UTC" apptOn billingOn={false} custom={[{ key: 'vehicles', label: 'Vehicles' }]} stages={['New', 'Won']} counts={null} /></Frame>; }

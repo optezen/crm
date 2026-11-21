@@ -195,7 +195,7 @@ test('delayed actions are rows, not timers: they wait, survive "restarts", resum
   await rpc(owner, 'automation_set_enabled', org, w2, false);
   assert.equal((await runs(org, w2))[0].status, 'cancelled');
   assert.equal((await runs(org, wf))[0].status, 'succeeded');
-  await due(org); await drain(); assert.equal((await q('select count(*)::int n from public.notifications where organization_id=$1', [org]))[0].n, 0);
+  await due(org); await drain(); assert.equal((await q('select count(*)::int n from public.notifications where organization_id=$1 and category=\'automation\'', [org]))[0].n, 0);
 });
 
 test('retries: transient failures back off and eventually succeed; permanent failures and exhausted retries dead-letter and can be requeued', async () => {
@@ -281,10 +281,10 @@ test('actions: update record (validated against the module), update task status,
     actions: [{ type: 'update_task_status', status: 'done', outcome: 'Closed by rule for {{lead.full_name}}' }, { type: 'notify', recipient: EMP, title: 'Closed {{task.title}}', body: 'for {{lead.full_name}}' }, { type: 'request_integration', channel: 'whatsapp', to: 'lead_contact', message: 'Hi {{lead.full_name}}, thanks!' }] });
   const t = await rpc(owner, 'crm_create_task', org, l, 'Please auto-close me', owner, new Date().toISOString().slice(0, 10)); await drain();
   const [task] = await q('select status, outcome from public.tasks where id=$1', [t]); assert.deepEqual(task, { status: 'done', outcome: 'Closed by rule for Asha Rao' });
-  const mine = await rows(EMP, 'select title, body, read_at from public.notifications'); assert.deepEqual(mine.map(n => [n.title, n.body]), [['Closed Please auto-close me', 'for Asha Rao']]);
-  assert.equal((await rows(EMP2, 'select 1 from public.notifications')).length, 0, 'notifications are private to the recipient');
-  assert.equal((await rows(owner, 'select 1 from public.notifications')).length, 0);
-  await rpc(EMP, 'notifications_mark_read', null); assert.ok((await rows(EMP, 'select read_at from public.notifications'))[0].read_at);
+  const mine = await rows(EMP, 'select title, body, read_at from public.notifications where category=\'automation\''); assert.deepEqual(mine.map(n => [n.title, n.body]), [['Closed Please auto-close me', 'for Asha Rao']]);
+  assert.equal((await rows(EMP2, 'select 1 from public.notifications where category=\'automation\'')).length, 0, 'notifications are private to the recipient');
+  assert.equal((await rows(owner, 'select 1 from public.notifications where category=\'automation\'')).length, 0);
+  await rpc(EMP, 'notifications_mark_read', null); assert.ok((await rows(EMP, 'select read_at from public.notifications where category=\'automation\''))[0].read_at);
   const ir = await q('select channel, status, provider, payload from public.integration_requests where organization_id=$1', [org]);
   assert.equal(ir.length, 1); assert.deepEqual([ir[0].channel, ir[0].status, ir[0].provider, ir[0].payload.message, ir[0].payload.phone], ['whatsapp', 'requested', null, 'Hi Asha Rao, thanks!', '9845012345'.length ? ir[0].payload.phone : null]);
   assert.ok(ir[0].payload.phone, 'recipient resolved from the contact');

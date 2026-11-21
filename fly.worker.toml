@@ -1,0 +1,30 @@
+# Optizen background workers on Fly.io.  Deploy from the repository root:   fly deploy -c fly.worker.toml --build-only   (review), then   fly deploy -c fly.worker.toml
+# NOT deployed by this repository; nothing here contacts Fly until you run it.
+# Secrets (one time):  fly secrets set -c fly.worker.toml SUPABASE_URL=... SUPABASE_ANON_KEY=... WORKER_JWT=... INTEGRATION_ENCRYPTION_KEY=...
+# (WORKER_JWT is minted with worker/mint-worker-token.mjs. SUPABASE_SERVICE_ROLE_KEY also works but is not needed and not recommended.)
+app = "optizen-workers"
+primary_region = "sin"
+
+[build]
+  dockerfile = "worker/Dockerfile"
+
+[processes]
+  automation = "node worker/automation-worker.mjs"
+  integrations = "node worker/integration-worker.mjs"
+  maintenance = "node worker/maintenance-worker.mjs"
+
+# Each process listens on :8080 and answers /healthz with 503 when it has not completed a tick recently, so Fly restarts a stuck worker.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  processes = ["automation", "integrations", "maintenance"]
+
+[checks]
+  [checks.worker_health]
+    type = "http"
+    port = 8080
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    processes = ["automation", "integrations", "maintenance"]

@@ -285,7 +285,8 @@ test('WhatsApp: automation integration_requests are consumed only when a connect
   await rpc(A.owner, 'integration_upsert_assets', A.org, w.id, [{ kind: 'phone_number', external_id: '1234567890', name: '+91 98xxx' }]);
   await rpc(A.owner, 'integration_select_asset', A.org, w.id, (await q(`select id from public.integration_assets where connection_id=$1`, [w.id]))[0].id, true);
   await rpc(A.owner, 'integration_set_status', A.org, w.id, 'connected', null);
-  const [claimed] = (await worker('select * from public.integration_claim_requests(5)')).rows;
+  const consentAll = () => db.exec(`insert into public.messaging_consent (organization_id, contact_id, channel, status, source, note) select organization_id, id, 'whatsapp', 'opted_in', 'import', 'test fixture' from public.contacts on conflict do nothing`);
+  await consentAll(); const [claimed] = (await worker('select * from public.integration_claim_requests(5)')).rows;
   assert.equal(claimed.payload.message, 'Hi Neha, thanks for your enquiry!'); assert.equal(claimed.payload.phone, '+919811100077'); assert.equal(claimed.config.template_name, 'lead_welcome'); assert.equal(claimed.attempts, 1);
   assert.equal((await worker('select * from public.integration_claim_requests(5)')).rows.length, 0, 'claimed once');
   // transient failure -> requeued with backoff; permanent failure -> failed
@@ -301,14 +302,14 @@ test('WhatsApp: automation integration_requests are consumed only when a connect
   assert.equal((await worker('select public.integration_apply_status_events(50) r')).rows[0].r, 3); assert.equal((await req()).status, 'read', 'a late "sent" never moves the status backwards');
   // a failure report for a second message: sent -> failed, with the provider's error kept and logged
   await ingest(conn, { name: 'Omar', phone: '+919811100078' }); await drain(); await db.exec(`update public.integration_requests set next_attempt_at = now() - interval '1 second' where status = 'requested'`);
-  const [om] = (await worker('select * from public.integration_claim_requests(5)')).rows; await wrpc('integration_complete_request', om.id, true, 'wamid.DEF', null, false);
+  await consentAll(); const [om] = (await worker('select * from public.integration_claim_requests(5)')).rows; await wrpc('integration_complete_request', om.id, true, 'wamid.DEF', null, false);
   await recv([{ kind: 'whatsapp_status', asset_kind: 'phone_number', asset_id: '1234567890', dedupe_key: 'wamid.DEF:failed', payload: { message_id: 'wamid.DEF', status: 'failed', error: '131026 Message undeliverable' } }]); await worker('select public.integration_apply_status_events(50)');
   const failed = (await q('select status, last_error from public.integration_requests where id=$1', [om.id]))[0]; assert.deepEqual(failed, { status: 'failed', last_error: '131026 Message undeliverable' });
   assert.equal((await rows(A.owner, `select 1 from public.integration_errors where code='delivery_failed'`)).length, 1);
   await recv([{ ...st('delivered'), asset_id: '999', dedupe_key: 'z' }]); assert.equal((await rows(B.owner, 'select 1 from public.integration_webhook_events')).length, 0);
   // five transient failures -> failed for good
   await ingest(conn, { name: 'Pia', phone: '+919811100079' }); await drain();
-  for (let i = 1; i <= 5; i++) { await db.exec(`update public.integration_requests set next_attempt_at = now() - interval '1 second' where status = 'requested'`); const c = (await worker('select * from public.integration_claim_requests(5)')).rows[0]; assert.equal(c.attempts, i); const s = await wrpc('integration_complete_request', c.id, false, null, 'HTTP 500', true); assert.equal(s, i < 5 ? 'requested' : 'failed'); }
+  for (let i = 1; i <= 5; i++) { await db.exec(`update public.integration_requests set next_attempt_at = now() - interval '1 second' where status = 'requested'`); await consentAll(); const c = (await worker('select * from public.integration_claim_requests(5)')).rows[0]; assert.equal(c.attempts, i); const s = await wrpc('integration_complete_request', c.id, false, null, 'HTTP 500', true); assert.equal(s, i < 5 ? 'requested' : 'failed'); }
   // other channels have no provider: they are never claimed
   assert.equal((await q(`select count(*)::int n from public.integration_requests where channel <> 'whatsapp' and status <> 'requested'`))[0].n, 0);
 });

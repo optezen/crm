@@ -1,0 +1,26 @@
+// Process wrapper shared by the three workers: credentials, heartbeat, health endpoint, graceful shutdown. All logic that matters is in src/lib/workers/loop.ts.
+import { createClient } from '@supabase/supabase-js';
+import { createServer } from 'node:http';
+import { hostname } from 'node:os';
+import { runLoop, newHealth, isHealthy } from '../src/lib/workers/loop.ts';
+
+export const log = o => console.log(JSON.stringify({ t: new Date().toISOString(), ...o }));
+/** Least privilege: with WORKER_JWT (a token for the restricted `optizen_worker` role, see worker/mint-worker-token.mjs) the worker can run only the worker functions. Falling back to the service-role key works but is logged. */
+export function database() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL; const opts = { auth: { persistSession: false, autoRefreshToken: false } };
+  if (process.env.WORKER_JWT && process.env.SUPABASE_ANON_KEY && url) return { db: createClient(url, process.env.SUPABASE_ANON_KEY, { ...opts, global: { headers: { Authorization: `Bearer ${process.env.WORKER_JWT}` } } }), mode: 'restricted-role' };
+  if (url && process.env.SUPABASE_SERVICE_ROLE_KEY) { log({ level: 'warn', message: 'Using the service-role key. Prefer WORKER_JWT + SUPABASE_ANON_KEY (restricted role).' }); return { db: createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, opts), mode: 'service-role' }; }
+  console.error('Set SUPABASE_URL and either (WORKER_JWT + SUPABASE_ANON_KEY) or SUPABASE_SERVICE_ROLE_KEY.'); process.exit(1);
+}
+export async function start({ name, tick, pollMs }) {
+  const { db, mode } = database(); const once = process.argv.includes('--once'); const instance = `${process.env.FLY_MACHINE_ID || hostname()}-${process.pid}`; const version = (process.env.FLY_IMAGE_REF || process.env.GIT_SHA || 'dev').slice(-40);
+  let stop = false; for (const s of ['SIGINT', 'SIGTERM']) process.on(s, () => { stop = true; });
+  const health = newHealth(Date.now()); const poll = pollMs;
+  if (!once && process.env.PORT !== '0') createServer((req, res) => { const ok = isHealthy(health, Date.now(), poll); res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify({ ok, worker: name, ticks: health.ticks, lastOkAt: health.lastOkAt, consecutiveFailures: health.consecutiveFailures })); }).listen(Number(process.env.PORT) || 8080);
+  log({ level: 'info', worker: name, instance, mode, message: 'worker started' });
+  try {
+    await runLoop({ name, instance, version, pollMs, once, health, now: Date.now, sleep: ms => new Promise(r => setTimeout(r, ms)), shouldStop: () => stop, log, tick: () => tick(db),
+      heartbeat: async (stats, error) => { const r = await db.rpc('worker_heartbeat', { p_worker: name, p_instance: instance, p_version: version, p_stats: stats, p_error: error }); if (r.error) throw new Error(r.error.message); } });
+  } catch (e) { log({ level: 'error', message: e.message }); process.exit(1); }
+  process.exit(0);
+}

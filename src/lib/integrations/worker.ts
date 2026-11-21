@@ -41,16 +41,17 @@ export async function processLeadEvents(d: WorkerDeps, limit = 10): Promise<{ cl
 }
 
 export async function deliverWhatsApp(d: WorkerDeps, limit = 10): Promise<{ claimed: number; sent: number; failed: number }> {
-  const reqs = (await must(d.rpc('integration_claim_requests', { p_limit: limit }))) as { id: string; connection_id: string; payload: { message?: string; phone?: string }; config: Record<string, string> }[];
+  const reqs = (await must(d.rpc('integration_claim_requests', { p_limit: limit }))) as { id: string; connection_id: string; payload: { message?: string; phone?: string; template_name?: string; template_language?: string; params?: string[] }; config: Record<string, string> }[];
   let sent = 0, failed = 0;
   for (const r of reqs) {
     try {
       const cfg = r.config ?? {};
-      if (!cfg.template_name || !cfg.template_language) throw new ProviderError('No approved WhatsApp template is configured on the connection. Add the template name and language.', 'permanent', 'no_template');
+      const template = r.payload.template_name ?? cfg.template_name, language = r.payload.template_language ?? cfg.template_language; // reminders carry their own approved template
+      if (!template || !language) throw new ProviderError('No approved WhatsApp template is configured on the connection. Add the template name and language.', 'permanent', 'no_template');
       if (!r.payload.phone) throw new ProviderError('The lead has no phone number.', 'permanent', 'no_phone');
       const adapter = messagingAdapter(cfg.provider ?? '', d.fetch);
       const c = await creds<Record<string, string>>(d, r.connection_id);
-      const out = await adapter.send({ to: toWhatsAppNumber(r.payload.phone, cfg.default_country_code), templateName: cfg.template_name, language: cfg.template_language, bodyParams: r.payload.message ? [r.payload.message] : [] },
+      const out = await adapter.send({ to: toWhatsAppNumber(r.payload.phone, cfg.default_country_code), templateName: template, language, bodyParams: r.payload.params ?? (r.payload.message ? [r.payload.message] : []) },
         adapter.id === 'meta_cloud' ? { access_token: c.access_token, phone_number_id: cfg.phone_number_id ?? c.phone_number_id } : c);
       await must(d.rpc('integration_complete_request', { p_request: r.id, p_ok: true, p_message_id: out.messageId, p_error: null, p_retryable: false }));
       sent++;

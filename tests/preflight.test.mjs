@@ -40,6 +40,11 @@ test('preflight: a correct configuration passes; every mistake is named without 
   assert.ok(fails(preflight('tests', { ...tests, SUPABASE_TEST_SERVICE_ROLE_KEY: jwt({ role: 'service_role', ref: PROD }) })).length > 0, 'a service key from another project is caught'); assert.ok(fails(preflight('tests', { ...tests, SUPABASE_TEST_ALLOW_REMOTE: undefined })).length > 0);
 });
 
+test('preflight accepts the new publishable/secret key formats but not look-alikes', () => {
+  const pub = 'sb_publishable_' + 'A'.repeat(30); assert.deepEqual(fails(preflight('web', { ...web, NEXT_PUBLIC_SUPABASE_ANON_KEY: pub })), []);
+  assert.ok(fails(preflight('web', { ...web, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'sb_secret_' + 'A'.repeat(30) })).length > 0, 'a secret key must never be accepted as the browser key'); assert.ok(fails(preflight('web', { ...web, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_short' })).length > 0);
+});
+
 test('preflight CLI: reads only the named file, exits 1 on failure, never prints values', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pf-')); const f = join(dir, 'web.env'); writeFileSync(f, Object.entries({ ...web, INTEGRATION_ENCRYPTION_KEY: 'bad-key-value-xyz' }).map(([k, v]) => `${k}=${v}`).join('\n'));
   const r = spawnSync(process.execPath, ['scripts/preflight.mjs', 'web', '--env-file', f], { cwd: new URL('../', import.meta.url).pathname, encoding: 'utf8', env: { PATH: process.env.PATH } }); assert.equal(r.status, 1); assert.match(r.stdout, /FAIL  INTEGRATION_ENCRYPTION_KEY is valid/); assert.ok(!r.stdout.includes('bad-key-value-xyz')); assert.match(r.stdout, /PASS  migration chain 0001–0026 is contiguous \(26 files\)/);

@@ -10,7 +10,7 @@ export function preflight(target, env) {
   const need = (k, test, why) => { if (!has(k)) return add('FAIL', `${k} is set`, why); const bad = test?.(env[k]); bad ? add('FAIL', `${k} is valid`, bad) : add('PASS', `${k} is set and valid`); };
   const forbid = (k, why, level = 'FAIL') => has(k) ? add(level, `${k} is NOT set here`, why) : add('PASS', `${k} is not set here`);
   const stagingRef = env.STAGING_SUPABASE_REF;
-  const jwtRef = (k, role) => { const p = decode(env[k]); if (!p) return `${k} is not a JWT`; if (p.role !== role) return `${k} has role "${p.role}", expected "${role}"`; if (p.ref && stagingRef && p.ref !== stagingRef) return `${k} belongs to a different Supabase project than STAGING_SUPABASE_REF`; return null; };
+  const jwtRef = (k, role) => { if (role === 'anon' && /^sb_publishable_[A-Za-z0-9_-]{20,}$/.test(env[k] ?? '')) return null; /* new-style publishable key: not a JWT, the project cannot be read from it */ if (role === 'service_role' && /^sb_secret_[A-Za-z0-9_-]{20,}$/.test(env[k] ?? '')) return null; const p = decode(env[k]); if (!p) return `${k} is not a JWT`; if (p.role !== role) return `${k} has role "${p.role}", expected "${role}"`; if (p.ref && stagingRef && p.ref !== stagingRef) return `${k} belongs to a different Supabase project than STAGING_SUPABASE_REF`; return null; };
   if (target === 'web') {
     need('OPTIZEN_ENV', v => (v === 'staging' ? null : 'must be "staging" on the staging web app'), 'set OPTIZEN_ENV=staging');
     need('STAGING_SUPABASE_REF', v => (/^[a-z0-9]{10,30}$/.test(v) ? null : 'a project ref looks like abcdefghijklmnop'), 'the staging project ref');

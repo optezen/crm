@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { hostname } from 'node:os';
 import { readFileSync } from 'node:fs';
 import { tokenDaysLeft, TOKEN_WARN_DAYS } from '../src/lib/workers/token.ts';
+import { checkTarget } from '../src/lib/env-guard.ts';
 import { runLoop, newHealth, isHealthy } from '../src/lib/workers/loop.ts';
 
 export const log = o => console.log(JSON.stringify({ t: new Date().toISOString(), ...o }));
@@ -11,6 +12,7 @@ export const log = o => console.log(JSON.stringify({ t: new Date().toISOString()
 /** The current worker token: WORKER_JWT_FILE (re-read on every request, so a token can be renewed by replacing the file, with no restart) or WORKER_JWT. */
 const currentToken = () => { const f = process.env.WORKER_JWT_FILE; if (f) { try { const t = readFileSync(f, 'utf8').trim(); if (t) return t; } catch { /* fall back to the environment */ } } return process.env.WORKER_JWT; };
 export function database() {
+  { const problem = checkTarget(process.env); if (problem) { console.error(`Startup refused: ${problem}`); process.exit(1); } } // never run against the wrong project
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL; const opts = { auth: { persistSession: false, autoRefreshToken: false } };
   if (currentToken() && process.env.SUPABASE_ANON_KEY && url) {
     const withToken = (input, init) => { const h = new Headers(init?.headers); h.set('Authorization', `Bearer ${currentToken()}`); return fetch(input, { ...init, headers: h }); };

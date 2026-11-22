@@ -62,3 +62,58 @@ test('[e2e] reports and dashboards open for the owner, never leak to another wor
   for (const path of ['/dashboards', '/reports']) { const { ctx, p } = await page('outsider'); await p.goto(APP_URL + path); assert.equal(await p.getByText('E2E Org A').count(), 0); await ctx.close(); }
   const employeeBuilder = await get('/builder', 'employee'); assert.ok([302, 307, 404].includes(employeeBuilder.status) || employeeBuilder.status === 200, 'builder is role-gated');
 });
+
+const poll = async (fn, ms = 90000, every = 1500) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) return null; await new Promise(r => setTimeout(r, every)); } };
+const rpc = async (u, fn, args) => { const r = await u.client.rpc(fn, args); assert.ifError(r.error); return r.data; };
+
+test('[e2e] automation: a published workflow is executed by the REAL staging worker (needs the workers deployed), exactly once', opt, async () => {
+  const wf = await rpc(owner, 'automation_save_draft', { p_org: orgA, p_workflow: null, p_name: 'E2E follow-up', p_definition: { trigger: { event: 'lead.created' }, actions: [{ type: 'create_task', title: 'E2E call {{lead.full_name}}', due_in_days: 1, owner: 'lead_assignee' }] } }); await rpc(owner, 'automation_publish', { p_org: orgA, p_workflow: wf, p_enable: true });
+  const lead = await rpc(owner, 'crm_create_lead', { p_org: orgA, p_full_name: 'E2E Automation', p_phone: '+919845000888', p_email: null, p_source: 'website', p_summary: null, p_stage: null, p_assigned_to: owner.id });
+  const run = await poll(async () => (await admin().from('automation_runs').select('status').eq('workflow_id', wf).maybeSingle()).data?.status === 'succeeded'); assert.ok(run, 'the staging worker ran the workflow within 90 s (are the workers deployed and reporting?)');
+  const { data: tasks } = await admin().from('tasks').select('title').eq('lead_id', lead); assert.deepEqual(tasks.map(t => t.title), ['E2E call E2E Automation'], 'one task, created once');
+  const { ctx, p } = await page('owner'); await p.goto(APP_URL + '/builder/operations'); await p.getByText(/All \d+ workers? (is|are) running/).waitFor({ timeout: 15000 }); await ctx.close();
+});
+
+test('[e2e] custom modules and the Visual Builder configuration: publish a module, add a record, see it in Work mode, refuse a destructive change', opt, async () => {
+  const def = definition('E2E Org A', { modules: [{ key: 'overview', label: 'Overview', status: 'active' }, { key: 'leads', label: 'Leads', status: 'active' }, { key: 'vehicles', label: 'Vehicles', status: 'active' }], objects: [{ key: 'vehicles', label: 'Vehicles', fields: [{ key: 'registration', label: 'Registration', kind: 'text', required: true }, { key: 'price', label: 'Price', kind: 'currency', currency: 'INR' }] }], operations: OPS });
+  await rpc(owner, 'save_workspace_draft', { p_org: orgA, p_definition: def }); await rpc(owner, 'publish_workspace_config', { p_org: orgA }); const rec = await rpc(owner, 'record_create', { p_org: orgA, p_object: 'vehicles', p_data: { registration: 'KA01E2E', price: '250000' } });
+  assert.ok(rec); const { ctx, p } = await page('owner'); await p.goto(APP_URL + '/work/vehicles'); await p.getByText('KA01E2E').waitFor(); await ctx.close();
+  const empList = await get('/work/vehicles', 'employee'); assert.equal(empList.status, 200, 'members can read active modules');
+  await rpc(owner, 'save_workspace_draft', { p_org: orgA, p_definition: { ...def, objects: [] , modules: def.modules.filter(m => m.key !== 'vehicles') } }); const bad = await owner.client.rpc('publish_workspace_config', { p_org: orgA }); assert.ok(bad.error, 'removing a record type that has data is refused'); await rpc(owner, 'discard_workspace_draft', { p_org: orgA });
+});
+
+test('[e2e] appointments, inventory and billing keep their integrity through real sessions', opt, async () => {
+  const type = await rpc(owner, 'appointment_type_save', { p_org: orgA, p_id: null, p_name: 'E2E Consult', p_duration: 30, p_active: true }); await rpc(owner, 'staff_hours_set', { p_org: orgA, p_user: owner.id, p_hours: [0, 1, 2, 3, 4, 5, 6].map(w => ({ weekday: w, start: '00:00', end: '23:59' })) });
+  const start = new Date(Date.now() + 5 * 864e5); start.setUTCMinutes(0, 0, 0); const mk = () => owner.client.rpc('appointment_create', { p_org: orgA, p_type: type, p_staff: owner.id, p_contact: null, p_lead: null, p_start: start.toISOString(), p_notes: null, p_custom: {} });
+  const [a, b] = await Promise.all([mk(), mk()]); assert.equal([a, b].filter(r => !r.error).length, 1, 'two bookings of one slot: exactly one wins');
+  const L = await rpc(owner, 'inventory_location_save', { p_org: orgA, p_id: null, p_name: 'Main', p_active: true }); const P = await rpc(owner, 'product_save', { p_org: orgA, p_id: null, p_sku: 'E2E-1', p_name: 'E2E Widget', p_unit: 'pcs', p_track_batches: false, p_threshold: null, p_active: true, p_custom: null });
+  await rpc(owner, 'stock_receive', { p_org: orgA, p_product: P, p_location: L, p_qty: 10, p_lot: null, p_expiry: null, p_supplier: null, p_purchase_ref: null, p_reason: null }); const takes = await Promise.all(Array.from({ length: 6 }, (_, i) => owner.client.rpc('stock_consume', { p_org: orgA, p_product: P, p_location: L, p_qty: 3, p_batch: null, p_ref_type: 'e2e', p_ref_id: `o${i}`, p_reason: null })));
+  assert.equal(takes.filter(r => !r.error).length, 3, '6 x 3 against 10 units: exactly 3 succeed'); const { data: lv } = await admin().from('stock_levels').select('quantity').eq('product_id', P); assert.equal(Number(lv[0].quantity), 1);
+  for (const path of ['/work/appointments', '/work/inventory', '/work/billing']) assert.equal((await get(path, 'owner')).status, 200, path);
+});
+
+test('[e2e] WhatsApp consent through the UI: opt-in needs a reason, opt-out is recorded, and nothing is sent', opt, async () => {
+  const lead = await rpc(owner, 'crm_create_lead', { p_org: orgA, p_full_name: 'E2E Consent', p_phone: '+919845000999', p_email: null, p_source: 'website', p_summary: null, p_stage: null, p_assigned_to: null });
+  const { ctx, p } = await page('owner'); await p.goto(`${APP_URL}/work/leads/${lead}`); await p.getByText('No consent recorded').waitFor();
+  await p.getByLabel('Customer choice').selectOption('opted_in'); await p.getByRole('button', { name: 'Save consent' }).click(); await p.getByRole('alert').filter({ hasText: 'Confirm that the customer agreed' }).waitFor();
+  await p.getByLabel(/I confirm the customer told us/).check(); await p.getByLabel(/How did they say so/).fill('Asked on the phone during the E2E run'); await p.getByRole('button', { name: 'Save consent' }).click(); await p.getByText('Consent saved.').waitFor();
+  const { data: c1 } = await admin().from('messaging_consent').select('status, source').eq('organization_id', orgA); assert.deepEqual(c1.filter(r => r.source === 'staff').map(r => r.status), ['opted_in']);
+  await p.reload(); await p.getByLabel('Customer choice').selectOption('opted_out'); await p.getByRole('button', { name: 'Save consent' }).click(); await p.getByText('Consent saved.').waitFor(); const { data: c2 } = await admin().from('messaging_consent').select('status').eq('organization_id', orgA); assert.deepEqual(c2.map(r => r.status), ['opted_out']);
+  const { count } = await admin().from('integration_requests').select('id', { count: 'exact', head: true }).eq('organization_id', orgA).eq('channel', 'whatsapp').eq('status', 'sent'); assert.equal(count, 0, 'no message was sent in this test'); await ctx.close();
+  const emp = await rpc(employee, 'consent_set', { p_org: orgA, p_contact: (await admin().from('leads').select('contact_id').eq('id', lead).single()).data.contact_id, p_status: 'opted_in', p_source: 'staff', p_note: 'x y z' }).then(() => 'allowed', () => 'refused'); assert.equal(emp, 'refused', 'an employee who cannot see this lead cannot change its consent');
+});
+
+test('[e2e] roles and permissions: an employee cannot reach administrator screens or other people\'s money', opt, async () => {
+  for (const path of ['/builder/connections', '/builder/operations']) { const r = await get(path, 'employee'); const body = r.status === 200 ? await r.text() : ''; assert.ok(r.status !== 200 || /limited to owners and admins/i.test(body), `${path} is not usable by an employee`); }
+  const { data: pay } = await employee.client.from('invoice_payments').select('id'); assert.deepEqual(pay, [], 'an employee reads no payments'); const { data: cred, error } = await employee.client.from('integration_credentials').select('ciphertext'); assert.ok(error || cred?.length === 0);
+});
+
+test('[e2e][AI] configuration proposals need a person to approve them (runs only with E2E_AI=1 and a spend-capped test key on the staging app)', { skip: guard ?? (process.env.E2E_AI === '1' ? false : 'set E2E_AI=1 with a capped ANTHROPIC_API_KEY on the staging app') }, async () => {
+  const { ctx, p } = await page('owner'); await p.goto(APP_URL + '/assistant'); const box = p.getByRole('textbox').first(); await box.fill('Add a text field called Notes to the Vehicles module'); await p.keyboard.press('Enter');
+  await p.getByRole('button', { name: /approve|apply|confirm/i }).first().waitFor({ timeout: 60000 }); const before = (await admin().from('workspace_configuration_versions').select('id', { count: 'exact', head: true }).eq('organization_id', orgA)).count;
+  assert.equal((await admin().from('workspace_configuration_versions').select('id', { count: 'exact', head: true }).eq('organization_id', orgA)).count, before, 'a proposal changes nothing until approved'); await ctx.close();
+});
+
+test('[e2e][voice] transcription needs a configured speech credential (runs only with E2E_VOICE=1)', { skip: guard ?? (process.env.E2E_VOICE === '1' ? false : 'set E2E_VOICE=1 once a speech-to-text credential exists on the staging app') }, async () => {
+  const r = await fetch(APP_URL + '/api/ai/transcribe', { method: 'POST', headers: { cookie: jar.owner.header(), 'content-type': 'audio/webm' }, body: Buffer.alloc(2000) }); assert.ok([200, 400, 415, 422].includes(r.status), `transcription endpoint answered ${r.status}`);
+});

@@ -8,7 +8,19 @@ Goal: a real, disposable, production-like environment where the pilot is rehears
 3. Authentication → URL configuration: Site URL = the staging web URL; add `https://<staging-web>/auth/callback` to Redirect URLs. Authentication → Providers: Email on. Use a real SMTP provider for staging (the built-in mailer is heavily rate limited) or test accounts you can read.
 4. Database → Extensions: `pgcrypto` and `btree_gist` (migration 0010 creates `btree_gist` itself; confirm both exist afterwards).
 
+## 1b. Check your configuration before anything is applied
+Put the staging values in git-ignored env files and run (no value is ever printed):
+```bash
+node scripts/preflight.mjs web     --env-file .env.staging.web --compare-env-file .env.staging.workers
+node scripts/preflight.mjs workers --env-file .env.staging.workers
+node scripts/preflight.mjs tests   --env-file .env.test.local
+```
+Set `OPTIZEN_ENV=staging` and `STAGING_SUPABASE_REF=<ref>` (and `SUPABASE_PRODUCTION_REF=<production ref>` as a second lock) on the web app and workers: they refuse to start against any other project.
+
 ## 2. Apply the migrations (in order, once)
+**Scripted (recommended):** `STAGING_DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres' npm run db:plan -- --confirm-ref <ref>` prints the plan and changes nothing; add `--apply` (only after you approve) to run each file in its own transaction with a checksum ledger. Then `npm run db:validate -- --confirm-ref <ref>` runs the checks below plus extension/version/checksum checks and exits non-zero on any failure. Both refuse a project that is not named, does not match, or is the production-labelled one. Rehearsed locally by `npm run test:provisioning`. Use `supabase db push` instead if you prefer, but not both on the same database.
+
+The manual equivalents:
 Run on **staging only**, with the SQL editor or `supabase link --project-ref <staging-ref>` then `supabase db push`. The files are `supabase/migrations/0001` … `0026`, contiguous and in order. Do not edit an applied migration; fixes ship as new numbers.
 
 Validate immediately (all should be empty / as stated):

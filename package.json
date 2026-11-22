@@ -14,7 +14,12 @@
     "test:security": "node --test --test-concurrency=1 tests/concurrency/security.test.mjs",
     "test:workers": "node --test --test-concurrency=1 tests/concurrency/workers.test.mjs",
     "test:perf": "node --test --test-concurrency=1 --test-timeout=600000 tests/concurrency/performance.test.mjs",
-    "test:e2e:staging": "node --env-file-if-exists=.env.test.local --test --test-concurrency=1 tests/e2e/staging.e2e.mjs"
+    "test:e2e:staging": "node --env-file-if-exists=.env.test.local --test --test-concurrency=1 tests/e2e/staging.e2e.mjs",
+    "test:provisioning": "node --test --test-concurrency=1 --test-timeout=300000 tests/concurrency/provisioning.test.mjs",
+    "test:hosted-layout": "PG_LAYOUT=supabase npm run test:concurrency && PG_LAYOUT=supabase npm run test:security && PG_LAYOUT=supabase npm run test:workers",
+    "db:plan": "node scripts/db-apply.mjs",
+    "db:validate": "node scripts/db-validate.mjs",
+    "preflight": "node scripts/preflight.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

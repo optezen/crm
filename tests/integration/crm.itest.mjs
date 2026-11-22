@@ -72,7 +72,7 @@ test('list: search, filters and pagination', opt, async () => {
   assert.equal(p2.rows.length, 2);
   assert.equal(new Set([...p1.rows, ...p2.rows].map(r => r.id)).size, PAGE_SIZE + 2, 'pages do not overlap');
   assert.equal(ok(await crm.listLeads(O, parseListParams({ q: '9000000003' }, STAGES))).total, 1, 'phone search');
-  assert.equal(ok(await crm.listLeads(O, parseListParams({ q: 'live@example.com' }, STAGES))).total, 1, 'email search');
+  assert.equal(ok(await crm.listLeads(O, parseListParams({ q: 'live@example.com' }, STAGES))).total, 2, 'email search: both leads of the shared contact match (the lifecycle test created a second lead on the same phone)');
   assert.equal(ok(await crm.listLeads(O, parseListParams({ q: 'Bulk Person', stage: 'b' }, STAGES))).rows.every(r => r.stage === 'b'), true);
   assert.equal(ok(await crm.listLeads(O, parseListParams({ assignee: emp.id }, STAGES))).rows.every(r => r.assignedTo === emp.id), true);
   assert.equal(ok(await crm.listLeads(O, parseListParams({ q: 'x,full_name.eq.y)(' }, STAGES))).total, 0, 'filter-syntax in search is inert');

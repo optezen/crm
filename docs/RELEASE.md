@@ -3,7 +3,7 @@
 Applies to a controlled pilot on a **separate staging project first**, then production. Nothing here is run automatically. Do not apply migrations to, or deploy against, the existing production-labelled Supabase project without explicit approval.
 
 ## 1. What is being released
-Branch `feature/task-15-integrations-reliability` (local, not pushed). Migrations `0001` → `0026`, contiguous and in order. `0001_foundation_DRAFT.sql` keeps its historical name: **do not rename it** (a renamed file looks like a new migration to the Supabase history table).
+Branch `feature/task-15-integrations-reliability` (local, not pushed). Migrations `0001` → `0027`, contiguous and in order. `0001_foundation_DRAFT.sql` keeps its historical name: **do not rename it** (a renamed file looks like a new migration to the Supabase history table).
 
 | # | Purpose | Compatibility note |
 |---|---|---|
@@ -21,6 +21,7 @@ Branch `feature/task-15-integrations-reliability` (local, not pushed). Migration
 | 0023 | credential re-key function, key-version counts | additive; worker/service roles only |
 | 0024 | trigger: a payments connection becomes Connected only after a verified notification | behaviour change; no earlier UI could connect payments |
 | 0025 | `worker_health_check` for uptime monitors | additive; gateway-secret gated |
+| 0027 | explicit privileges for `service_role` (hosted Supabase no longer grants them by default) | additive; no new access for anon/authenticated/worker |
 | 0026 | search/home-summary performance (same signatures and output; new `search_candidates`) | compatible; proven identical by 265 role/query comparisons in `test:perf` |
 
 **Application versions:** the web app and workers of this release require migrations through `0026`. The previous web version works against `0026` except for the 0017 caveat above (only relevant if you skip releases). Deploy order: **migrations → web app → workers**.

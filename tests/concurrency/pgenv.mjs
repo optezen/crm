@@ -20,7 +20,7 @@ export async function startPg({ migrations = true, attach, keep = false } = {}) 
   if (!attach) { await server.initialise(); } await server.start(); if (!attach) await server.createDatabase('t');
   const conf = { host: 'localhost', port, user: 'postgres', password: 'pw', database: 't' };
   const pool = new pg.Pool({ ...conf, max: 60 }); pool.on('error', () => {});
-  // PG_LAYOUT=supabase: how the hosted platform is laid out. Extensions live in the `extensions` schema (NOT public) and the API roles search `public, extensions`.
+  // PG_LAYOUT=supabase: how the hosted platform is laid out. Extensions live in the `extensions` schema (NOT public), the API roles search `public, extensions`, and new objects get NO automatic grants for anon/authenticated/service_role (the current hosted default: only explicit GRANTs in the migrations count).
   // Functions that call extension code without qualifying it break here and nowhere else, so this is the compatibility rehearsal for the hosted project.
   const hosted = process.env.PG_LAYOUT === 'supabase';
   if (!attach && hosted) await pool.query(`create schema extensions; create extension pgcrypto schema extensions; create extension btree_gist schema extensions;`);
@@ -29,8 +29,8 @@ export async function startPg({ migrations = true, attach, keep = false } = {}) 
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema auth to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;
     grant usage on schema public to anon, authenticated, service_role;
-    alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-    alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+    ${hosted ? '' : `alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+    alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`}
     ${hosted ? 'grant usage on schema extensions to anon, authenticated, service_role; alter role anon set search_path = public, extensions; alter role authenticated set search_path = public, extensions; alter role service_role set search_path = public, extensions;' : ''}
     insert into auth.users values ('${EMP}','emp@x.test'),('${EMP2}','emp2@x.test'),('${MGR}','mgr@x.test'),('${ADM}','adm@x.test');`);
   await Promise.all(Array.from({ length: 40 }, () => pool.connect())).then(cs => cs.forEach(c => c.release())); // warm 40 backends so concurrent calls really start together

@@ -7,7 +7,7 @@ const parse = f => Object.fromEntries(readFileSync(f, 'utf8').split('\n').map(l 
 const file = arg('--env-file'); if (!file) { console.error('Usage: node scripts/preflight.mjs <web|workers|tests> --env-file <file>'); process.exit(2); }
 const env = parse(file); let items = preflight(target, env);
 const cmp = arg('--compare-env-file'); if (cmp && target === 'web') items = items.concat(crossCheck(env, parse(cmp)));
-const files = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter(f => f.endsWith('.sql')).sort(); const ok = files.length === 26 && files.every((f, i) => Number(f.slice(0, 4)) === i + 1);
+const files = readdirSync(new URL('../supabase/migrations/', import.meta.url)).filter(f => f.endsWith('.sql')).sort(); const ok = files.length >= 26 && files.every((f, i) => Number(f.slice(0, 4)) === i + 1);
 items.push({ level: ok ? 'PASS' : 'FAIL', name: `migration chain 0001–${String(files.length).padStart(4, '0')} is contiguous (${files.length} files)`, detail: '' });
 for (const i of items) console.log(`${i.level.padEnd(4)}  ${i.name}${i.detail && i.level !== 'PASS' ? `  — ${i.detail}` : ''}`);
 const w = worst(items); console.log(w === 2 ? '\nFAIL: fix the items above before deploying.' : w === 1 ? '\nPASS with warnings: the warned features will be skipped.' : '\nAll checks passed.'); process.exit(w === 2 ? 1 : 0);

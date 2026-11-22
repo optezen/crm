@@ -24,3 +24,9 @@ Payment idempotency race (0021); payments connectable without evidence (0024); s
 
 ## How to add one
 Add a row here with an ID, reproduction, severity, and whether it blocks. A fix ships as a new migration or code change plus a test that fails without it.
+
+## Found on the real staging project (first live run)
+| ID | Description | Status |
+|---|---|---|
+| K14 | **Hosted Supabase's default privileges changed**: objects created by `postgres` no longer get automatic grants for `anon`, `authenticated` or `service_role` (only TRUNCATE/REFERENCES/TRIGGER/MAINTAIN for service_role). Every grant the application needs is explicit in the migrations (verified: the privileges of `anon`, `authenticated` and `optizen_worker` on the hosted project match a local database exactly), but `service_role` lost everything not granted explicitly, so operators, the live test suites and the documented worker fallback could not read tables. | Fixed by migration 0027 (restores service_role's privileges; adds none for anon/authenticated/optizen_worker). The local "hosted layout" now emulates the new defaults, so reliance on an implicit grant fails locally. **0027 must be applied to staging after approval.** |
+| K15 | Live integration tests contained assumptions that only held locally: numerics as `'10.00'` vs `10` over PostgREST; a test expecting one lead where two share a contact; self-service sign-up on a hosted project (requires deliverable, confirmed e-mail). | Test fixes; sign-up test now skips on hosted projects with the reason. |

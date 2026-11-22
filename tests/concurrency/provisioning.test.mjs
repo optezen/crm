@@ -3,7 +3,9 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { startPg } from './pgenv.mjs';
+const COUNT = readdirSync(new URL('../../supabase/migrations/', import.meta.url)).filter(f => f.endsWith('.sql')).length;
 import { targetProblem, describeTarget } from '../../scripts/lib/target.mjs';
 
 let env, url; process.env.PG_LAYOUT = 'supabase';
@@ -24,13 +26,13 @@ test('[provision] a remote target without the right confirmation is refused befo
     for (const script of ['scripts/db-apply.mjs', 'scripts/db-validate.mjs']) { const r = run(script, args, { STAGING_DATABASE_URL: 'postgresql://postgres:x@db.abcdefghij1234.supabase.co:5432/postgres', ...env }); assert.equal(r.status, 2, `${script}: ${r.stdout}${r.stderr}`); assert.match(r.stderr, re); assert.ok(!/postgresql:\/\//.test(r.stderr + r.stdout), 'the connection string is never printed'); }
 });
 
-test('[provision] plan changes nothing; apply runs all 26 in order; validation passes; a repeat is a no-op; the schema looks right under the hosted layout', async () => {
-  let r = run('scripts/db-apply.mjs'); assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /26 migrations in the repository, 0 already applied, 26 to apply \(PLAN ONLY/); assert.equal((await env.q(`select count(*)::int n from information_schema.tables where table_name='organizations'`))[0].n, 0, 'the plan created nothing');
-  r = run('scripts/db-apply.mjs', ['--apply']); assert.equal(r.status, 0, r.stdout + r.stderr); assert.equal((r.stdout.match(/ applied /g) ?? []).length, 26); assert.match(r.stdout, /applied 0026_search_performance\.sql/);
+test('[provision] plan changes nothing; apply runs every migration in order; validation passes; a repeat is a no-op; the schema looks right under the hosted layout', async () => {
+  let r = run('scripts/db-apply.mjs'); assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, new RegExp(`${COUNT} migrations in the repository, 0 already applied, ${COUNT} to apply \\(PLAN ONLY`)); assert.equal((await env.q(`select count(*)::int n from information_schema.tables where table_name='organizations'`))[0].n, 0, 'the plan created nothing');
+  r = run('scripts/db-apply.mjs', ['--apply']); assert.equal(r.status, 0, r.stdout + r.stderr); assert.equal((r.stdout.match(/ applied /g) ?? []).length, COUNT); assert.match(r.stdout, /applied 0027_service_role_grants\.sql/);
   r = run('scripts/db-validate.mjs'); assert.equal(r.status, 0, r.stdout + r.stderr); assert.match(r.stdout, /All checks passed/); for (const id of ['pg ', 'ext ', 'ledger', 'checksums', '1 ', '2 ', '3 ', '4 ', '4b', '5 ', '6 ', '7 ']) assert.match(r.stdout, new RegExp(`PASS  ${id}`));
   assert.deepEqual((await env.q(`select n.nspname from pg_extension e join pg_namespace n on n.oid=e.extnamespace where e.extname in ('pgcrypto','btree_gist')`)).map(x => x.nspname), ['extensions', 'extensions'], 'extensions live in the extensions schema, as on the hosted platform');
-  r = run('scripts/db-apply.mjs', ['--apply']); assert.equal(r.status, 0); assert.match(r.stdout, /26 already applied, 0 to apply/); assert.equal((r.stdout.match(/ applied /g) ?? []).length, 0);
-  assert.equal((await env.q(`select count(*)::int n from public.optizen_schema_migrations`))[0].n, 26);
+  r = run('scripts/db-apply.mjs', ['--apply']); assert.equal(r.status, 0); assert.match(r.stdout, new RegExp(`${COUNT} already applied, 0 to apply`)); assert.equal((r.stdout.match(/ applied /g) ?? []).length, 0);
+  assert.equal((await env.q(`select count(*)::int n from public.optizen_schema_migrations`))[0].n, COUNT);
 });
 
 test('[provision] an applied migration can never be silently edited, and validation catches real security regressions', async () => {
@@ -43,5 +45,5 @@ test('[provision] an applied migration can never be silently edited, and validat
 test('[provision] a failing migration rolls back alone and says what to do', async () => {
   const fresh = await startPg({ migrations: false }); try { await fresh.q(`create table public.organizations (id int)`); // conflicts with migration 0004/0002: the very first file that creates it fails
     const r = spawnSync(process.execPath, ['scripts/db-apply.mjs', '--apply'], { cwd: new URL('../../', import.meta.url).pathname, env: { PATH: process.env.PATH, STAGING_DATABASE_URL: `postgresql://postgres:pw@localhost:${fresh.port}/t` }, encoding: 'utf8' });
-    assert.equal(r.status, 1); assert.match(r.stderr, /FAILED \d{4}_.*rolled back.*restore the pre-release backup/s); assert.ok(!r.stderr.includes('pw@'), 'no credentials in the output'); const done = (await fresh.q(`select count(*)::int n from public.optizen_schema_migrations`))[0].n; assert.ok(done < 26); } finally { await fresh.stop(); }
+    assert.equal(r.status, 1); assert.match(r.stderr, /FAILED \d{4}_.*rolled back.*restore the pre-release backup/s); assert.ok(!r.stderr.includes('pw@'), 'no credentials in the output'); const done = (await fresh.q(`select count(*)::int n from public.optizen_schema_migrations`))[0].n; assert.ok(done < COUNT); } finally { await fresh.stop(); }
 });

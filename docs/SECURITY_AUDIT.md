@@ -39,3 +39,6 @@ No critical or high-severity vulnerability was found.
 5. **AI:** the assistant only proposes changes that a person confirms, tools return masked contact data, and budgets are reserved atomically (tested, 20 simultaneous reservations fit exactly the limit). Lead free text is untrusted input to the model; the confirmation step is the control. Not re-audited against live models.
 6. **PostgreSQL version:** rehearsed on 18.x; Supabase hosts 15/17. No version-specific features are used, but confirm on staging.
 7. **Payment provider logic** (Razorpay) and WhatsApp/Meta flows are verified against documentation and mocks, never against live accounts.
+
+## Addendum: first run against the real staging project (Task 17+)
+The five catalog checks plus secret-column checks **passed on the hosted project** after the migrations (`scripts/db-validate-cli.mjs`). A role-by-role privilege comparison between the hosted project and a local database found `anon`, `authenticated` and `optizen_worker` identical, and `service_role` missing everything not explicitly granted (K14, fixed by 0027). The live integration suite then passed 27 of 39 on the first run; the 12 failures were traced to K14 (8), stale or local-only test assumptions (3) and a hosted-only sign-up restriction (1). No defect in the application's authorization was found.

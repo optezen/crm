@@ -42,5 +42,5 @@ test('parallel payments cannot exceed the invoice and numbers stay unique', opt,
   const nums = (await Promise.all(drafts.map(d => rpc(owner, 'invoice_issue', { p_id: d })))).map(r => r.data); assert.equal(new Set(nums).size, 5, 'no duplicate invoice numbers');
   const inv = drafts[0], pays = await Promise.all(Array.from({ length: 8 }, () => rpc(owner, 'payment_record', { p_invoice: inv, p_amount: 30, p_method: 'cash', p_reference: null, p_note: null, p_received: null, p_key: null })));
   assert.equal(pays.filter(r => !r.error).length, 3, '3 x 30 fits in 100, the rest are refused');
-  assert.equal((await owner.client.from('invoice_balances').select('balance_due').eq('invoice_id', inv).single()).data.balance_due, '10.00'); assert.deepEqual((await rpc(owner, 'billing_reconcile', {})).data, []);
+  assert.equal((await owner.client.from('invoice_balances').select('balance_due').eq('invoice_id', inv).single()).data.balance_due.toString().replace(/\.0+$/, ''), '10'); /* PostgREST returns numerics as numbers (10), a SQL driver as '10.00' */ assert.deepEqual((await rpc(owner, 'billing_reconcile', {})).data, []);
 });

@@ -47,6 +47,6 @@ test('preflight accepts the new publishable/secret key formats but not look-alik
 
 test('preflight CLI: reads only the named file, exits 1 on failure, never prints values', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pf-')); const f = join(dir, 'web.env'); writeFileSync(f, Object.entries({ ...web, INTEGRATION_ENCRYPTION_KEY: 'bad-key-value-xyz' }).map(([k, v]) => `${k}=${v}`).join('\n'));
-  const r = spawnSync(process.execPath, ['scripts/preflight.mjs', 'web', '--env-file', f], { cwd: new URL('../', import.meta.url).pathname, encoding: 'utf8', env: { PATH: process.env.PATH } }); assert.equal(r.status, 1); assert.match(r.stdout, /FAIL  INTEGRATION_ENCRYPTION_KEY is valid/); assert.ok(!r.stdout.includes('bad-key-value-xyz')); assert.match(r.stdout, /PASS  migration chain 0001–0026 is contiguous \(26 files\)/);
+  const r = spawnSync(process.execPath, ['scripts/preflight.mjs', 'web', '--env-file', f], { cwd: new URL('../', import.meta.url).pathname, encoding: 'utf8', env: { PATH: process.env.PATH } }); assert.equal(r.status, 1); assert.match(r.stdout, /FAIL  INTEGRATION_ENCRYPTION_KEY is valid/); assert.ok(!r.stdout.includes('bad-key-value-xyz')); assert.match(r.stdout, /PASS  migration chain 0001–00\d\d is contiguous \(\d+ files\)/);
   writeFileSync(f, Object.entries(web).map(([k, v]) => `${k}=${v}`).join('\n')); const ok = spawnSync(process.execPath, ['scripts/preflight.mjs', 'web', '--env-file', f], { cwd: new URL('../', import.meta.url).pathname, encoding: 'utf8', env: { PATH: process.env.PATH } }); assert.equal(ok.status, 0, ok.stdout);
 });

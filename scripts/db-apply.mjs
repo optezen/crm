@@ -5,9 +5,10 @@
 import pg from 'pg';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
-import { targetProblem, describeTarget } from './lib/target.mjs';
+import { targetProblem, describeTarget, loadEnvFile } from './lib/target.mjs';
 
 const arg = n => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : undefined; }; const apply = process.argv.includes('--apply');
+loadEnvFile(arg('--env-file'));
 const url = process.env.STAGING_DATABASE_URL; if (!url) { console.error('Set STAGING_DATABASE_URL.'); process.exit(2); }
 const problem = targetProblem(url, { confirmRef: arg('--confirm-ref') }); if (problem) { console.error(`REFUSED: ${problem}`); process.exit(2); }
 const dir = new URL('../supabase/migrations/', import.meta.url); const files = readdirSync(dir).filter(f => f.endsWith('.sql')).sort();

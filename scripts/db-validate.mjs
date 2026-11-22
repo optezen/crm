@@ -3,9 +3,10 @@
 import pg from 'pg';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
-import { targetProblem, describeTarget } from './lib/target.mjs';
+import { targetProblem, describeTarget, loadEnvFile } from './lib/target.mjs';
 
 const arg = n => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : undefined; };
+loadEnvFile(arg('--env-file'));
 const url = process.env.STAGING_DATABASE_URL; if (!url) { console.error('Set STAGING_DATABASE_URL.'); process.exit(2); }
 const problem = targetProblem(url, { confirmRef: arg('--confirm-ref') }); if (problem) { console.error(`REFUSED: ${problem}`); process.exit(2); }
 const c = new pg.Client({ connectionString: url, ssl: describeTarget(url).local ? false : { rejectUnauthorized: false } }); await c.connect(); const q = async (s, p) => (await c.query(s, p)).rows;

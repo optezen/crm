@@ -24,3 +24,9 @@ export function targetProblem(urlString, { confirmRef, env = process.env } = {})
   if (env.STAGING_SUPABASE_REF && env.STAGING_SUPABASE_REF !== t.ref) return 'The project is not STAGING_SUPABASE_REF. Stopping.';
   return null;
 }
+
+/** Loads KEY=value lines from a git-ignored env file into process.env (values already in the environment win). Never prints a value. */
+export function loadEnvFile(file) {
+  if (!file) return; if (!existsSync(file)) { console.error(`Env file not found: ${file}`); process.exit(2); }
+  for (const line of readFileSync(file, 'utf8').split('\n')) { const m = /^\s*([A-Z0-9_]+)=(.*)$/.exec(line); if (!m) continue; const v = m[2].trim().replace(/^["']|["']$/g, ''); if (v !== '' && process.env[m[1]] === undefined) process.env[m[1]] = v; }
+}

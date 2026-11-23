@@ -65,8 +65,9 @@ test('leads pages: members reach them; org-less and outsider users cannot see an
   assert.ifError(error);
   const own = await get(`/work/leads/${id}`, jar.owner.header()); assert.ok([200, 404].includes(own.status));
   const foreign = await get(`/work/leads/${id}`, jar.outsider.header({ bos_org: orgA }));
-  assert.equal(foreign.status, 404); assert.doesNotMatch(await foreign.text(), /Route Lead/);
-  assert.equal((await get('/work/leads/not-a-uuid', jar.owner.header())).status, 404);
+  // The page streams a loading shell first, so the status is 200 (not 404) on a streaming host even for a missing lead. What matters is that nothing of the lead is disclosed and the not-found screen is shown.
+  const body = await foreign.text(); assert.ok([200, 404].includes(foreign.status)); assert.doesNotMatch(body, /Route Lead/); assert.match(body, /could not be found|not found/i);
+  { const bad = await get('/work/leads/not-a-uuid', jar.owner.header()); assert.ok([200, 404].includes(bad.status)); assert.match(await bad.text(), /could not be found|not found/i); }
   assert.match(await (await get('/team', jar.employee.header())).text(), /limited to owners and admins/);
   assert.match(await (await get('/team', jar.owner.header())).text(), /Add a team member/);
 });

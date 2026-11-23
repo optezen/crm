@@ -8,7 +8,7 @@ const opt = { skip: guard ?? false };
 after(cleanup);
 
 // A hosted project validates e-mail domains and (correctly) requires confirmation, so self-service password sign-up cannot be tested there: Optizen signs in with e-mail links. Runs only on a local stack with confirmations off.
-test('signup with email+password creates a user (requires email confirmations OFF)', { ...opt, skip: opt.skip ?? (process.env.SUPABASE_TEST_ALLOW_SIGNUP === '1' ? false : 'hosted project: needs a local stack with e-mail confirmations off (SUPABASE_TEST_ALLOW_SIGNUP=1)') }, async t => {
+test('signup with email+password creates a user (requires email confirmations OFF)', { ...opt, skip: opt.skip || (process.env.SUPABASE_TEST_ALLOW_SIGNUP === '1' ? false : 'hosted project: needs a local stack with e-mail confirmations off (SUPABASE_TEST_ALLOW_SIGNUP=1)') }, async t => {
   const email = `it-signup-${crypto.randomUUID()}@example.test`;
   const { data, error } = await anon().auth.signUp({ email, password: crypto.randomUUID() + 'Aa1!' });
   if (data?.user?.id) await admin().auth.admin.deleteUser(data.user.id);

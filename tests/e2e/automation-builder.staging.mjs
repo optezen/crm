@@ -64,13 +64,36 @@ test('[staging] returning later: the draft reopens from the database, fitted and
   const list = await p.goto(`${APP_URL}/automations/${wfId}?view=list`); assert.equal(list.status(), 200); await p.getByText('E2E website leads').first().waitFor(); assert.equal(await p.locator('.wf-canvas').count(), 0, 'the original list editor is still available'); await ctx.close();
 });
 
-test('[staging] preview on the real page makes no write: no POST/server action, no API or database request', opt, async () => {
+test('[staging] desktop Full screen fills the screen and Esc leaves it; editing a step updates the step, the summary and the problem list (nothing saved)', opt, async () => {
+  const { ctx, p } = await page('owner'); await p.goto(`${APP_URL}/automations/${wfId}`); await p.locator('.wf-node').first().waitFor(); await p.waitForTimeout(400);
+  const before = await box(p.locator('.wf-canvas')); await p.getByRole('button', { name: 'Full screen' }).click(); await p.waitForTimeout(400);
+  assert.equal(await p.locator('.wfs-root').getAttribute('data-expanded'), 'true'); const full = await box(p.locator('.wf-canvas'));
+  assert.ok(full.width >= DESKTOP.width * 0.94 && full.height >= DESKTOP.height * 0.6 && full.width > before.width && full.height > before.height, `expanded ${Math.round(full.width)}x${Math.round(full.height)} (was ${Math.round(before.width)}x${Math.round(before.height)})`); assert.ok((await zoom(p)) >= 85);
+  await shot(p, 'fullscreen-desktop');
+  // step editing: select the task step, change its title; the card, the summary and the saved/unsaved state follow
+  await p.locator('.wf-node').nth(3).click(); const panel = p.locator('#wfs-right'); await panel.getByRole('heading', { name: /Step 4 details/ }).waitFor();
+  await panel.getByLabel('Task title').fill('Phone {{lead.full_name}} today'); assert.match(await p.locator('.wf-node').nth(3).innerText(), /Phone \[Contact name\] today/); assert.match(await p.locator('.wfs-summary').innerText(), /Phone \[Contact name\] today/); assert.match(await p.locator('.save-state').innerText(), /Unsaved changes/);
+  await panel.getByLabel('Task title').fill(''); const strip = p.getByRole('region', { name: 'Problems to fix' }); await strip.waitFor(); assert.ok(await p.getByRole('button', { name: 'Save draft' }).isDisabled(), 'an empty task title cannot be saved');
+  await p.getByRole('button', { name: 'Undo' }).click(); await p.waitForTimeout(150); await p.locator('.wf-canvas').focus(); await p.keyboard.press('Escape'); await p.waitForTimeout(300); assert.equal(await p.locator('.wfs-root').getAttribute('data-expanded'), 'false', 'Esc leaves full screen');
+  const { data: v } = await admin().from('automation_workflow_versions').select('status, definition').eq('workflow_id', wfId).eq('status', 'draft'); assert.deepEqual(v[0].definition, EXPECTED, 'nothing was saved by editing');
+  await ctx.close();
+});
+
+const TABLES = ['automation_workflows', 'automation_workflow_versions', 'automation_runs', 'automation_steps', 'audit_events', 'notifications', 'integration_requests', 'tasks', 'leads', 'domain_events'];
+/** Row counts and the workflow's updated_at for ONE workspace, read with the service role (fixture inspection only), so before/after can be compared exactly. */
+async function snapshot() { const a = admin(), out = {}; for (const t of TABLES) { const { count, error } = await a.from(t).select('*', { count: 'exact', head: true }).eq('organization_id', orgA); out[t] = error ? `n/a (${error.code})` : count; }
+  const { data } = await a.from('automation_workflows').select('updated_at, enabled, published_version').eq('id', wfId).single(); out.workflow = data; return out; }
+
+test('[staging] preview on the real page makes no write: no POST/server action, no API or database request, and the workspace\'s rows are byte-for-byte unchanged', opt, async () => {
   const { ctx, p, requests } = await page('owner'); await p.goto(`${APP_URL}/automations/${wfId}`); await p.locator('.wf-node').first().waitFor();
+  const dbBefore = await snapshot();
   await p.getByRole('button', { name: 'Preview', exact: true }).click(); const panel = p.locator('#wfs-right'); await panel.getByRole('button', { name: 'Run preview' }).waitFor(); const mark = requests.length;
   await panel.getByRole('button', { name: 'Run preview' }).click(); const res = p.getByRole('region', { name: 'Preview result' }); await res.waitFor(); assert.match(await res.innerText(), /would not run|would run/i);
   await panel.getByText('Sample event (edit to try other cases)').click(); await panel.getByLabel('Lead stage').fill('website'); await panel.getByRole('button', { name: 'Run preview again' }).click(); assert.match(await res.innerText(), /This would run\. 2 actions would happen/); await shot(p, 'preview');
+  await panel.getByText('Sample event (edit to try other cases)').click(); await panel.getByLabel('Lead stage').fill('lost'); await panel.getByRole('button', { name: 'Run preview again' }).click(); assert.match(await res.innerText(), /would stop here and do nothing/);
   const after = requests.slice(mark); assert.deepEqual(after.filter(r => r.method !== 'GET'), [], 'no POST during preview'); assert.deepEqual(after.filter(r => /supabase\.co|\/api\//.test(r.url)), [], 'no database/API request during preview');
-  const { count } = await admin().from('automation_runs').select('id', { count: 'exact', head: true }).eq('organization_id', orgA); assert.equal(count, 0, 'no automation run was created'); await ctx.close();
+  const dbAfter = await snapshot(); assert.deepEqual(dbAfter, dbBefore, 'every table count and the workflow row are identical before and after the preview'); assert.equal(dbAfter.automation_runs, 0, 'no automation run exists');
+  console.log('  db snapshot before == after:', JSON.stringify(dbAfter)); await ctx.close();
 });
 
 test('[staging] publish lifecycle through the new dialog: publish keeps it disabled; the published version equals the draft; nothing runs', opt, async () => {

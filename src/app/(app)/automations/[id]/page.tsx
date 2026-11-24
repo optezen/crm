@@ -10,6 +10,7 @@ import { StudioNav } from '../../../../components/studio/StudioNav';
 import { WorkflowStudio } from '../../../../components/studio/WorkflowStudio';
 import { Card } from '../../../../components/ui/Card';
 import { Notice } from '../../../../components/ui/Notice';
+import { aiAvailable } from '../../../../lib/ai/anthropic';
 import { AutomationEditor } from '../AutomationEditor';
 import { RunLog } from '../RunLog';
 
@@ -52,13 +53,20 @@ export default async function AutomationPage({ params, searchParams }: { params:
   const runs = w ? await listRuns(db, s.organizationId, w.id, 25) : null;
   const modules = s.config.objects.filter(o => s.config.modules.some(m => m.key === o.key && m.status === 'active') && o.key !== 'leads').map(o => ({ key: o.key, label: o.label, fields: o.fields.filter(f => !f.archived).map(f => ({ key: f.key, label: f.label })) }));
   const members = team.ok ? team.value.map(m => ({ id: m.userId, email: m.email, role: m.role, active: m.active })) : [];
-  return <div className="stack">
+  const status = w?.enabled ? 'Enabled' : w?.publishedVersion ? 'Published but disabled' : 'Not live yet';
+  if (sp.view === 'list') return <div className="stack">
     <StudioNav current="workflows" />
     <div className="top"><div><span className="eyebrow">Optizen Automations</span><h1>{w ? w.name : 'New automation'}</h1>
-      <p className="muted">{w?.enabled ? 'Enabled.' : w?.publishedVersion ? 'Published but disabled.' : 'Not live yet.'} <a href="/automations">All automations</a> · {sp.view === 'list' ? <Link href={`/automations/${id}`}>Visual canvas</Link> : <Link href={`/automations/${id}?view=list`}>List view</Link>}</p></div></div>
-    {sp.view === 'list' ? <AutomationEditor key={hash(JSON.stringify([w, members.length]))} id={w?.id ?? null} name={w?.name ?? ''} enabled={w?.enabled ?? false} publishedVersion={w?.publishedVersion ?? null} draft={w?.draft ?? null} published={w?.published ?? null} modules={modules} members={members} /> : meta && !meta.ok ? <Notice title="Automation could not be loaded">{meta.error}</Notice>
+      <p className="muted">{status}. <a href="/automations">All automations</a> · <Link href={`/automations/${id}`}>Visual canvas</Link></p></div></div>
+    <AutomationEditor key={hash(JSON.stringify([w, members.length]))} id={w?.id ?? null} name={w?.name ?? ''} enabled={w?.enabled ?? false} publishedVersion={w?.publishedVersion ?? null} draft={w?.draft ?? null} published={w?.published ?? null} modules={modules} members={members} />
+    {runs && <Card title="Execution history" description="Every run, with each step’s result. Failed runs can be retried.">{runs.ok ? <RunLog runs={runs.value} /> : <p className="err">{runs.error}</p>}</Card>}
+  </div>;
+  // Canvas view: the canvas is the page. Chrome is one slim line; the workspace takes the rest of the screen (see .wfs-root).
+  return <div className="stack" style={{ gap: 16 }}>
+    <nav className="wfs-crumb" aria-label="Automation navigation"><Link href="/automations">← All automations</Link><span className="muted">Optizen Automations · {status}</span>{w && <Link href={`/automations/${id}?view=list`}>List view</Link>}</nav>
+    {meta && !meta.ok ? <Notice title="Automation could not be loaded">{meta.error}</Notice>
       : <WorkflowStudio id={w?.id ?? null} name={w?.name ?? proposedName} enabled={w?.enabled ?? false} publishedVersion={w?.publishedVersion ?? null} draft={w?.draft ?? null} published={w?.published ?? null} initial={initial}
-          layout={meta && meta.ok ? meta.value.layout : null} token={w ? (meta && meta.ok ? meta.value.token : null) : null} modules={modules} members={members} proposalId={proposalId} banner={wip ? 'Unfinished work you saved earlier. It cannot run or be published until it is complete and saved as a draft.' : banner} wip={wip as never} />}
+          layout={meta && meta.ok ? meta.value.layout : null} token={w ? (meta && meta.ok ? meta.value.token : null) : null} modules={modules} members={members} proposalId={proposalId} aiAvailable={aiAvailable()} banner={wip ? 'Unfinished work you saved earlier. It cannot run or be published until it is complete and saved as a draft.' : banner} wip={wip as never} />}
     {runs && <Card title="Execution history" description="Every run, with each step’s result. Failed runs can be retried.">{runs.ok ? <RunLog runs={runs.value} /> : <p className="err">{runs.error}</p>}</Card>}
   </div>;
 }

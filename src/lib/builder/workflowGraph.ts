@@ -19,7 +19,7 @@ type TriggerNode = Extract<GraphNode, { kind: 'trigger' }>;
 const isTrigger = (n: GraphNode): n is TriggerNode => n.kind === 'trigger';
 export type Issue = { nodeId?: string; message: string };
 
-export const NODE_W = 230, NODE_H = 92, GAP_X = 70;
+export const NODE_W = 340, NODE_H = 96, GAP_Y = 56; // a top-to-bottom chain stays readable at any width; a left-to-right one shrinks to unreadable zoom
 const ID = /^[a-z0-9_-]{1,24}$/;
 
 export const blankAction = (a: ActionType): Action => ({
@@ -122,9 +122,21 @@ export function definitionToGraph(d: AutomationDefinition, layout?: Layout | nul
   const nodes = kinds.map((n, i) => ({ ...n, id: reuse ? layout!.order[i]! : `n${i + 1}` }) as GraphNode);
   const edges = nodes.slice(1).map((n, i) => ({ from: nodes[i]!.id, to: n.id }));
   const pos: Layout['pos'] = {};
-  nodes.forEach((n, i) => { pos[n.id] = reuse && layout!.pos[n.id] ? layout!.pos[n.id]! : { x: 40 + i * (NODE_W + GAP_X), y: 120 }; });
+  const auto = autoLayout(nodes.map(n => n.id));
+  nodes.forEach(n => { pos[n.id] = reuse && layout!.pos[n.id] ? layout!.pos[n.id]! : auto[n.id]!; });
   return { graph: { nodes, edges }, pos, view: reuse ? layout!.view : undefined };
 }
+
+/** Steps stacked top to bottom in run order. */
+export const autoLayout = (order: string[]): Layout['pos'] => Object.fromEntries(order.map((id, i) => [id, { x: 60, y: 40 + i * (NODE_H + GAP_Y) }]));
+/** Chain steps stacked in run order; steps not on the chain keep their position (or sit in a column to the right). */
+export function relayout(g: Graph, pos: Layout['pos']): Layout['pos'] {
+  const { chain, rest } = chainOf(g); const out = autoLayout(chain.map(n => n.id));
+  rest.forEach((n, i) => { out[n.id] = pos[n.id] ?? { x: 60 + NODE_W + 80, y: 40 + i * (NODE_H + GAP_Y) }; });
+  return out;
+}
+/** The old default was one horizontal row; such layouts are re-stacked on load (layout is cosmetic metadata, never part of the definition). */
+export const isLegacyRow = (order: string[], pos: Layout['pos']) => order.length >= 2 && order.every(i => pos[i]) && order.every(i => pos[i]!.y === pos[order[0]!]!.y) && order.every((i, k) => k === 0 || pos[i]!.x > pos[order[k - 1]!]!.x);
 
 // ---- edits (all return a new graph; the caller records history) ----
 export function addNode(g: Graph, n: GraphNode, afterId?: string | null): Graph {

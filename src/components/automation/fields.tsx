@@ -13,16 +13,16 @@ export function fieldOptionsFor(scope: Scope, object: string | undefined, module
     : scope === 'invoice' ? [...INVOICE_FIELDS] : scope === 'payment' ? [...PAYMENT_FIELDS, ...INVOICE_FIELDS] : [];
 }
 
-export function ConditionsEditor({ op, conditions, onChange, fieldOptions }: { op: 'and' | 'or'; conditions: Condition[]; onChange: (op: 'and' | 'or', c: Condition[]) => void; fieldOptions: Opt }) {
+export function ConditionsEditor({ op, conditions, onChange, fieldOptions, errors = {} }: { op: 'and' | 'or'; conditions: Condition[]; onChange: (op: 'and' | 'or', c: Condition[]) => void; fieldOptions: Opt; errors?: Record<number, string> }) {
   const setCond = (i: number, c: Partial<Condition>) => onChange(op, conditions.map((x, j) => (j === i ? { ...x, ...c } : x)));
   return <div className="stack" style={{ gap: 10 }}>
     {conditions.length > 1 && <div className="field" style={{ maxWidth: 260 }}><label htmlFor="mop">Combine with</label><select id="mop" className="input" value={op} onChange={e => onChange(e.target.value as 'and' | 'or', conditions)}><option value="and">ALL must match (AND)</option><option value="or">ANY can match (OR)</option></select></div>}
-    {conditions.map((c, i) => <div className="inline" key={i}>
+    {conditions.map((c, i) => <div key={i} className="stack" style={{ gap: 4 }}><div className="inline">
       <select className="input" aria-label={`Condition ${i + 1} field`} value={c.field} onChange={e => setCond(i, { field: e.target.value })}>{!fieldOptions.some(([k]) => k === c.field) && <option value={c.field}>{c.field || 'Choose a field…'}</option>}{fieldOptions.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
       <select className="input" aria-label={`Condition ${i + 1} comparison`} value={c.op} onChange={e => { const o = e.target.value as Condition['op']; const { value, ...rest } = c; onChange(op, conditions.map((x, j) => (j === i ? (o === 'empty' || o === 'not_empty' ? { ...rest, op: o } : { ...rest, op: o, value: value ?? '' }) : x))); }}>{CONDITION_OPS.map(o => <option key={o} value={o}>{OP_LABEL[o]}</option>)}</select>
-      {c.op !== 'empty' && c.op !== 'not_empty' && <input className="input" aria-label={`Condition ${i + 1} value`} value={String(c.value ?? '')} placeholder={c.op === 'before' || c.op === 'after' ? 'YYYY-MM-DD or today' : 'Value'} onChange={e => setCond(i, { value: e.target.value })} />}
+      {c.op !== 'empty' && c.op !== 'not_empty' && <input className="input" aria-label={`Condition ${i + 1} value`} value={String(c.value ?? '')} placeholder={c.op === 'before' || c.op === 'after' ? 'YYYY-MM-DD or today' : 'Value'} aria-invalid={!!errors[i]} aria-describedby={errors[i] ? `cond-err-${i}` : undefined} onChange={e => setCond(i, { value: e.target.value })} />}
       <button type="button" className="btn" onClick={() => onChange(op, conditions.filter((_, j) => j !== i))}>Remove</button>
-    </div>)}
+    </div>{errors[i] && <span id={`cond-err-${i}`} className="err" role="alert">{errors[i]}</span>}</div>)}
     <div><button type="button" className="btn" disabled={conditions.length >= 20 || fieldOptions.length === 0} onClick={() => onChange(op, [...conditions, { field: fieldOptions[0]![0], op: 'eq', value: '' }])}>Add a condition</button></div>
   </div>;
 }

@@ -33,7 +33,8 @@ export async function listLeads(ctx: CrmContext, p: LeadListParams): Promise<Res
     q = q.or([`full_name.ilike.%${p.q}%`, `email.ilike.%${p.q}%`, `summary.ilike.%${p.q}%`, ...(digits.length >= 3 ? [`phone.ilike.%${digits}%`] : [])].join(','));
   }
   // ponytail: offset pagination; switch to keyset (created_at, id) if a single organization grows past ~100k leads
-  const { data, count, error } = await q.order('created_at', { ascending: false }).order('id').range(from, to);
+  const col = p.sort === 'name' ? 'full_name' : p.sort === 'updated' ? 'updated_at' : 'created_at';
+  const { data, count, error } = await q.order(col, { ascending: p.dir === 'asc' }).order('id').range(from, to);
   if (error) return dbError(error);
   const total = count ?? 0;
   return { ok: true, value: { rows: (data as LeadDb[]).map(toLead), total, page: p.page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) } };

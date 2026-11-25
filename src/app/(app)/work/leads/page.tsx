@@ -25,12 +25,13 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
   const label = (m: { userId: string; email: string }) => m.userId === ctx.userId ? 'Me' : m.email;
   const who = (id: string | null) => id === null ? 'Unassigned' : id === ctx.userId ? 'Me' : members.find(m => m.userId === id)?.email ?? 'Former member';
   const { rows, total, page, pageCount } = res.value;
-  const qs = (o: Record<string, string | number | null | undefined>) => { const u = new URLSearchParams(); const all = { q: params.q, stage: params.stage, source: params.source, assignee: params.assignee, ...o }; for (const [k, v] of Object.entries(all)) if (v) u.set(k, String(v)); const s = u.toString(); return `/work/leads${s ? `?${s}` : ''}`; };
+  const qs = (o: Record<string, string | number | null | undefined>) => { const u = new URLSearchParams(); const all = { q: params.q, stage: params.stage, source: params.source, assignee: params.assignee, sort: params.sort === 'created' ? null : params.sort, dir: params.dir === 'asc' ? 'asc' : null, ...o }; for (const [k, v] of Object.entries(all)) if (v) u.set(k, String(v)); const s = u.toString(); return `/work/leads${s ? `?${s}` : ''}`; };
   const filtered = Boolean(params.q || params.stage || params.source || params.assignee);
   const sum = Object.values(counts.ok ? counts.value : {}).reduce((a, b) => a + b, 0);
+  const sortHref = (k: 'name' | 'updated') => qs({ sort: k, dir: params.sort === k && params.dir === 'asc' ? null : params.dir === 'desc' && params.sort === k ? 'asc' : k === 'name' ? 'asc' : null, page: null });
   const exportHref = `/work/leads/export${qs({}).slice('/work/leads'.length)}`;
-  return <div className="stack">
-    <div className="top"><div><h1>Leads</h1><p className="muted">{total} {total === 1 ? 'lead' : 'leads'}{filtered ? ' match' : ''}</p></div>
+  return <div className="stack lt-page">
+    <div className="top"><h1 style={{ margin: 0 }}>Leads <span className="muted" style={{ fontSize: 15, fontWeight: 400 }}>{total}{filtered ? ' match' : ''}</span></h1>
       <div className="row"><Link className="btn" href="/work/leads/board">Board</Link><Link className="btn" href="/work/leads/import">Import</Link>{manager && <a className="btn" href={exportHref}>Export</a>}<Link className="btn primary" href="/work/leads/new">+ New lead</Link></div></div>
     <nav className="tabs" aria-label="Filter by stage"><Link href={qs({ stage: null })} aria-current={!params.stage ? 'page' : undefined}>All{counts.ok && <span>{sum}</span>}</Link>
       {ctx.stages.map(s => <Link key={s} href={qs({ stage: s, page: null })} aria-current={params.stage === s ? 'page' : undefined}>{s}{counts.ok && <span>{counts.value[s] ?? 0}</span>}</Link>)}</nav>
@@ -43,7 +44,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
     </form>
     {rows.length === 0
       ? <div className="empty-state"><strong>{filtered ? 'No leads match.' : 'No leads yet.'}</strong><p className="muted">{filtered ? 'Try a different search or clear the filters.' : 'Add your first lead, or import a spreadsheet.'}</p><div className="row">{filtered ? <Link className="btn" href="/work/leads">Clear filters</Link> : <><Link className="btn primary" href="/work/leads/new">+ New lead</Link><Link className="btn" href="/work/leads/import">Import a CSV</Link></>}</div></div>
-      : <LeadsTable stages={[...ctx.stages]} manager={manager} owners={members.map(m => ({ id: m.userId, label: label(m) }))}
+      : <LeadsTable sort={{ by: params.sort ?? 'created', dir: params.dir ?? 'desc', name: sortHref('name'), updated: sortHref('updated') }} stages={[...ctx.stages]} manager={manager} owners={members.map(m => ({ id: m.userId, label: label(m) }))}
           rows={rows.map(r => ({ id: r.id, name: r.fullName, summary: r.summary, phone: r.phone, email: r.email, hidden: r.contactHidden, stage: r.stage, source: SOURCE_LABEL[r.source], owner: who(r.assignedTo), ago: ago(r.updatedAt), tasks: r.openTasks, due: chip(r.id) }))} />}
     {rows.length > 0 && <nav className="lt-foot" aria-label="Pagination"><span>Total leads <strong>{total}</strong></span>
       <span className="row" style={{ gap: 8 }}>{page > 1 ? <Link className="btn" href={qs({ page: page - 1 })} aria-label="Previous page">←</Link> : <span className="btn" aria-hidden style={{ opacity: .35 }}>←</span>}

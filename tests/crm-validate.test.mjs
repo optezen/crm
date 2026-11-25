@@ -33,7 +33,9 @@ test('notes, tasks and outcomes', () => {
 });
 
 test('list params: junk falls back to defaults; search text cannot inject filter syntax', () => {
-  assert.deepEqual(parseListParams({}, stages), { page: 1, q: '', stage: null, source: null, assignee: null });
+  assert.deepEqual(parseListParams({}, stages), { page: 1, q: '', stage: null, source: null, assignee: null, sort: 'created', dir: 'desc' });
+  const o = parseListParams({ sort: 'name; drop table', dir: 'asc' }, stages); assert.deepEqual([o.sort, o.dir], ['created', 'asc']); // sort is a whitelist
+  assert.equal(parseListParams({ sort: 'name' }, stages).sort, 'name');
   const p = parseListParams({ page: '-3', stage: 'Nope', source: 'x', assignee: 'someone', q: 'a%,full_name.eq.x)(\\*"' }, stages);
   assert.deepEqual([p.page, p.stage, p.source, p.assignee], [1, null, null, null]);
   assert.doesNotMatch(p.q, /[%,()"\\*]/);

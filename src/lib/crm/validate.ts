@@ -69,6 +69,8 @@ export function parseListParams(sp: Record<string, string | string[] | undefined
     q: one('q').replace(/[%_,()"\\*]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80), // safe to embed in a PostgREST or()/ilike filter
     stage: stages.includes(stage) ? stage : null,
     source: (LEAD_SOURCES as readonly string[]).includes(source) ? (source as LeadSource) : null,
+    sort: one('sort') === 'name' || one('sort') === 'updated' ? (one('sort') as 'name' | 'updated') : 'created',
+    dir: one('dir') === 'asc' ? 'asc' : 'desc',
     assignee: assignee === 'me' || assignee === 'unassigned' || isUuid(assignee) ? assignee : null,
   };
 }

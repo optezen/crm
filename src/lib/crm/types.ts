@@ -24,7 +24,7 @@ export type LeadInput = { fullName: string; phone: string | null; email: string 
 export type NewLeadInput = LeadInput & { stage: string | null; assignedTo: string | null };
 export type TaskInput = { leadId: string; title: string; ownerId: string | null; dueDate: string };
 
-export type LeadListParams = { page: number; q: string; stage: string | null; source: LeadSource | null; assignee: 'me' | 'unassigned' | string | null };
+export type LeadListParams = { page: number; q: string; stage: string | null; source: LeadSource | null; assignee: 'me' | 'unassigned' | string | null; sort?: 'created' | 'name' | 'updated'; dir?: 'asc' | 'desc' };
 export type LeadRow = { id: string; stage: string; source: LeadSource; summary: string | null; assignedTo: string | null; createdAt: string; updatedAt: string; contactId: string; fullName: string; contactHidden: boolean; phone: string | null; email: string | null; openTasks: number };
 export type ActivityRow = { id: string; kind: string; body: string | null; meta: Record<string, unknown>; actorId: string | null; createdAt: string };
 export type TaskRow = { id: string; leadId: string; title: string; ownerId: string; dueDate: string; status: 'open' | 'done'; outcome: string | null; completedAt: string | null };

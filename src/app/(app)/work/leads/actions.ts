@@ -46,3 +46,17 @@ export async function importLeadsAction(_: FormState, f: FormData): Promise<Form
   if (created === 0) return { error: `No leads were imported. ${failed.slice(0, 5).join(' · ')}` };
   return { ok: `Imported ${created} lead${created === 1 ? '' : 's'}.${failed.length ? ` ${failed.length} skipped (${failed.sort().slice(0, 5).join(' · ')}${failed.length > 5 ? ' …' : ''}).` : ''}` };
 }
+
+/** Bulk or in-place change on up to 100 leads from the list. Each lead goes through the same RPC as the detail page (permissions, activity log, events), 10 at a time. */
+export async function bulkLeadsAction(ids: string[], op: { stage?: string; assignee?: string | null }): Promise<FormState> {
+  const c = await getCrmContext(); if (!c) return { error: 'Your session has ended. Please sign in again.' };
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100) return { error: 'Select between 1 and 100 leads.' };
+  let done = 0; const bad: string[] = [];
+  for (let i = 0; i < ids.length; i += 10) await Promise.all(ids.slice(i, i + 10).map(async id => {
+    const r = op.stage !== undefined ? await crm.setStage(c, id, op.stage) : await crm.assignLead(c, id, op.assignee ?? null);
+    if (r.ok) done++; else bad.push(r.error);
+  }));
+  revalidatePath('/work', 'layout');
+  if (done === 0) return { error: bad[0] ?? 'Nothing changed.' };
+  return { ok: `${done} lead${done === 1 ? '' : 's'} updated.${bad.length ? ` ${bad.length} could not be changed: ${bad[0]}` : ''}` };
+}

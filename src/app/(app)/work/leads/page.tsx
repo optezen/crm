@@ -5,6 +5,7 @@ import { isManager, listLeads, listMembers, stageCounts } from '../../../../lib/
 import { parseListParams } from '../../../../lib/crm/validate';
 import { LEAD_SOURCES, PAGE_SIZE, SOURCE_LABEL } from '../../../../lib/crm/types';
 import { LeadsTable } from '../../../../components/crm/LeadsTable';
+import { ModuleBar } from '../../../../components/crm/ModuleBar';
 import { Notice } from '../../../../components/ui/Notice';
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -31,8 +32,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
   const sortHref = (k: 'name' | 'updated') => qs({ sort: k, dir: params.sort === k && params.dir === 'asc' ? null : params.dir === 'desc' && params.sort === k ? 'asc' : k === 'name' ? 'asc' : null, page: null });
   const exportHref = `/work/leads/export${qs({}).slice('/work/leads'.length)}`;
   return <div className="stack lt-page">
-    <div className="top"><h1 style={{ margin: 0 }}>Leads <span className="muted" style={{ fontSize: 15, fontWeight: 400 }}>{total}{filtered ? ' match' : ''}</span></h1>
-      <div className="row"><Link className="btn" href="/work/leads/board">Board</Link><Link className="btn" href="/work/leads/import">Import</Link>{manager && <a className="btn" href={exportHref}>Export</a>}<Link className="btn primary" href="/work/leads/new">+ New lead</Link></div></div>
+    <ModuleBar title="Leads" meta={`${total} ${total === 1 ? 'record' : 'records'}${filtered ? ' match' : ''}`} view="list" actions={<><Link className="btn" href="/work/leads/import">Import</Link>{manager && <a className="btn" href={exportHref}>Export</a>}<Link className="btn primary" href="/work/leads/new">Create Lead</Link></>} />
     <nav className="tabs" aria-label="Filter by stage"><Link href={qs({ stage: null })} aria-current={!params.stage ? 'page' : undefined}>All{counts.ok && <span>{sum}</span>}</Link>
       {ctx.stages.map(s => <Link key={s} href={qs({ stage: s, page: null })} aria-current={params.stage === s ? 'page' : undefined}>{s}{counts.ok && <span>{counts.value[s] ?? 0}</span>}</Link>)}</nav>
     <form className="lt-filters" method="get" role="search" aria-label="Search and filter leads">
@@ -43,7 +43,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
       <button className="btn">Search</button>{filtered && <Link className="btn" href="/work/leads">Clear</Link>}
     </form>
     {rows.length === 0
-      ? <div className="empty-state"><strong>{filtered ? 'No leads match.' : 'No leads yet.'}</strong><p className="muted">{filtered ? 'Try a different search or clear the filters.' : 'Add your first lead, or import a spreadsheet.'}</p><div className="row">{filtered ? <Link className="btn" href="/work/leads">Clear filters</Link> : <><Link className="btn primary" href="/work/leads/new">+ New lead</Link><Link className="btn" href="/work/leads/import">Import a CSV</Link></>}</div></div>
+      ? <div className="empty-state"><strong>{filtered ? 'No leads match.' : 'No leads yet.'}</strong><p className="muted">{filtered ? 'Try a different search or clear the filters.' : 'Add your first lead, or import a spreadsheet.'}</p><div className="row">{filtered ? <Link className="btn" href="/work/leads">Clear filters</Link> : <><Link className="btn primary" href="/work/leads/new">Create Lead</Link><Link className="btn" href="/work/leads/import">Import</Link></>}</div></div>
       : <LeadsTable sort={{ by: params.sort ?? 'created', dir: params.dir ?? 'desc', name: sortHref('name'), updated: sortHref('updated') }} stages={[...ctx.stages]} manager={manager} owners={members.map(m => ({ id: m.userId, label: label(m) }))}
           rows={rows.map(r => ({ id: r.id, name: r.fullName, summary: r.summary, phone: r.phone, email: r.email, hidden: r.contactHidden, stage: r.stage, source: SOURCE_LABEL[r.source], owner: who(r.assignedTo), ago: ago(r.updatedAt), tasks: r.openTasks, due: chip(r.id) }))} />}
     {rows.length > 0 && <nav className="lt-foot" aria-label="Pagination"><span>Total leads <strong>{total}</strong></span>

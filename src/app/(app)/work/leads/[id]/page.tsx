@@ -41,8 +41,8 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
   const canClaim = !manager && lead.assignedTo === null;
   const wa = lead.phone ? `https://wa.me/${lead.phone.replace(/\D/g, '')}` : null;
   const open = tasks.filter(t => t.status === 'open');
-  return <div className="stack">
-    <div><Link className="muted" href="/work/leads">← All leads</Link></div>
+  return <div className="stack zrec">
+    <div><Link className="crumb" href="/work/leads">Leads</Link></div>
     <div className="ld-head"><div className="lt-av ld-av" aria-hidden>{lead.fullName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('')}</div>
       <div className="grow"><h1 style={{ margin: 0 }}>{lead.fullName}</h1><p className="muted" style={{ margin: '4px 0 0' }}>{SOURCE_LABEL[lead.source]} · {lead.assignedTo === null ? 'Unassigned' : `Owner: ${name(lead.assignedTo)}`}</p></div>
       {!lead.contactHidden && <div className="row">{lead.phone && <a className="btn primary" href={`tel:${lead.phone}`}>Call</a>}{wa && <a className="btn" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}{lead.email && <a className="btn" href={`mailto:${lead.email}`}>Email</a>}</div>}</div>
@@ -50,7 +50,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
 
     <div className="ld">
       <div className="stack">
-        <Card title="Add a note">
+        <Card title="Notes">
           <ActionForm action={addNoteAction} submit="Save note" resetOnSuccess>
             <input type="hidden" name="leadId" value={lead.id} />
             <textarea id="note" name="note" className="input" required maxLength={4000} rows={3} aria-label="Note" placeholder="What happened? Call outcome, what they asked for, next step…" />
@@ -79,7 +79,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
               </div>
             </ActionForm></details>
         </Card>
-        <Card title="Activity">
+        <Card title="Timeline">
           <ol className="timeline">{activities.map(a => <li key={a.id}>
             <small>{a.actorId ? name(a.actorId) === 'you' ? 'You' : name(a.actorId) : 'System'} · <LocalTime iso={a.createdAt} /></small>
             <p>{describe(a)}</p>
@@ -87,8 +87,8 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
         </Card>
       </div>
       <div className="stack">
-        <Card title="Contact">
-          <dl className="kv"><dt>Phone</dt><dd>{lead.contactHidden ? <span className="muted">Hidden by your role</span> : lead.phone ?? '—'}</dd><dt>Email</dt><dd>{lead.contactHidden ? <span className="muted">Hidden by your role</span> : lead.email ?? '—'}</dd><dt>Needs</dt><dd>{lead.summary ?? '—'}</dd></dl>
+        <Card title="Lead information">
+          <div className="zfields"><div><span>Phone</span><strong>{lead.contactHidden ? 'Hidden by your role' : lead.phone ?? '—'}</strong></div><div><span>Email</span><strong>{lead.contactHidden ? 'Hidden by your role' : lead.email ?? '—'}</strong></div><div><span>Source</span><strong>{SOURCE_LABEL[lead.source]}</strong></div><div><span>Stage</span><strong>{lead.stage}</strong></div><div className="wide"><span>Needs</span><strong>{lead.summary ?? '—'}</strong></div></div>
           <details style={{ marginTop: 12 }}><summary>Edit details</summary>
             <ActionForm action={updateLeadAction} submit="Save changes">
               <input type="hidden" name="leadId" value={lead.id} />

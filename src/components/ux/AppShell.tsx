@@ -10,11 +10,11 @@ export function AppShell({ businessName, groups, planned, unread, items, signOut
     {planned.length > 0 && <div className="navgroup"><span className="eyebrow">Coming later</span>{planned.map(m => <span key={m} className="planned">{m}<span className="tag">Planned</span></span>)}</div>}</nav>;
   return <div className="shell zcrm">
     <a className="skip" href="#main">Skip to content</a>
-    <aside className="side"><div className="brand">{businessName}<small>Optizen</small></div>{nav('nav-side', 'Workspace')}<form action={signOut} style={{ marginTop: 'auto' }}><button className="btn" style={{ width: '100%' }}>Sign out</button></form></aside>
+    <aside className="side"><div className="brandrow"><div className="brand">{businessName}<small>Optizen</small></div><SideToggle /></div>{nav('nav-side', 'Workspace')}<form action={signOut} style={{ marginTop: 'auto' }}><button className="btn" style={{ width: '100%' }}>Sign out</button></form></aside>
     <header className="mbar"><span className="brand">{businessName}</span>
       <details className="mmenu"><summary aria-label="Open menu">Menu</summary><div className="mmenu-body">{nav('nav-mobile', 'Workspace menu')}<form action={signOut}><button className="btn" style={{ width: '100%' }}>Sign out</button></form></div></details></header>
     <main className="main" id="main" tabIndex={-1}>
-      <div className="topbar"><SideToggle /><form action="/search" method="get" role="search" className="searchbox"><label className="sr-only" htmlFor="gs">Search</label><input id="gs" name="q" type="search" className="input" placeholder="Search leads, tasks, invoices…" minLength={2} maxLength={80} /></form>
+      <div className="topbar"><form action="/search" method="get" role="search" className="searchbox"><label className="sr-only" htmlFor="gs">Search</label><input id="gs" name="q" type="search" className="input" placeholder="Search leads, tasks, invoices…" minLength={2} maxLength={80} /></form>
         <div className="row" style={{ gap: 8 }}>{ai}<CommandSearch items={items} hideButton /></div></div>
       {children}</main>
     <nav className="tabbar" aria-label="Quick navigation"><a href="/work">Home</a><a href="/tasks">Follow-ups</a><a href="/search">Search</a><a href="/notifications">Alerts{unread > 0 ? ` (${unread})` : ''}</a></nav>

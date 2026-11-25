@@ -10,7 +10,7 @@ const wa = (p: string) => `https://wa.me/${p.replace(/\D/g, '')}`;
 export function LeadsTable({ rows, stages, owners, manager, sort }: { rows: LeadRowView[]; stages: string[]; owners: { id: string; label: string }[]; manager: boolean; sort: { by: string; dir: string; name: string; updated: string } }) {
   const [sel, setSel] = useState<Set<string>>(new Set()); const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null); const [pending, start] = useTransition();
   const COLS = [['email', 'Email'], ['source', 'Source'], ['notes', 'Notes'], ['owner', 'Owner'], ['updated', 'Updated']] as const;
-  const [cols, setCols] = useState<string[]>(['email', 'source', 'owner', 'updated']);
+  const [cols, setCols] = useState<string[]>(['email', 'owner']);
   useEffect(() => { try { const v = localStorage.getItem('lead-cols'); if (v) setCols(JSON.parse(v)); } catch {} }, []);
   const flip = (k: string) => setCols(c => { const n = c.includes(k) ? c.filter(x => x !== k) : [...c, k]; try { localStorage.setItem('lead-cols', JSON.stringify(n)); } catch {} return n; });
   const on = (k: string) => cols.includes(k);
@@ -37,7 +37,7 @@ export function LeadsTable({ rows, stages, owners, manager, sort }: { rows: Lead
         <td>{r.hidden ? <span className="muted">Hidden</span> : <span className="lt-act">
           {r.phone ? <><span className="lt-ph">{r.phone}</span><a className="ic call" href={`tel:${r.phone}`} aria-label={`Call ${r.name}`} title="Call"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden><path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1 1 0 011-.25 11 11 0 003.5.56 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.2.2 2.4.56 3.5a1 1 0 01-.25 1z"/></svg></a>
             <a className="ic wa" href={wa(r.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${r.name}`} title="WhatsApp">WA</a></> : <span className="muted">—</span>}
-          {r.email && <a className="ic" href={`mailto:${r.email}`} aria-label={`Email ${r.name}`} title={r.email}>@</a>}</span>}</td>
+          {r.email && !on('email') && <a className="ic" href={`mailto:${r.email}`} aria-label={`Email ${r.name}`} title={r.email}>@</a>}</span>}</td>
         <td><select className="input lt-stage" aria-label={`Stage of ${r.name}`} value={r.stage} disabled={pending} onChange={e => run([r.id], { stage: e.target.value })}>{[...new Set([r.stage, ...stages])].map(s => <option key={s}>{s}</option>)}</select></td>
         {on('email') && <td>{r.hidden ? <span className="muted">Hidden</span> : r.email ? <a className="zlink" href={`mailto:${r.email}`}>{r.email}</a> : <span className="muted">—</span>}</td>}{on('source') && <td>{r.source}</td>}{on('notes') && <td className="lt-notes">{r.summary ?? ''}</td>}{on('owner') && <td>{r.owner}</td>}{on('updated') && <td className="muted">{r.ago}</td>}</tr>)}</tbody></table></div>
   </div>;

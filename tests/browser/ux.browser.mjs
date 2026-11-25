@@ -127,3 +127,11 @@ test('[browser] every page carries the security headers: no framing, no sniffing
   const api = await fetch(BASE + '/api/health'); assert.equal(api.headers.get('x-frame-options'), 'DENY', 'API responses too');
   await p.setContent(`<iframe id="f" src="${BASE}/login" width="400" height="300"></iframe>`); await p.waitForTimeout(1500); const framed = await p.frame({ url: /\/login/ }); const body = framed ? await framed.evaluate(() => document.body?.innerText ?? '').catch(() => '') : ''; assert.ok(!/Sign in|Email/i.test(body), 'the login page does not render inside a frame'); await ctx.close();
 });
+
+test('[browser][fixture data] hiding the menu gives the page the full width (and showing it restores the sidebar)', async () => {
+  const { page, close } = await open('/ux-fixtures/home'); const main = () => page.locator('main').boundingBox();
+  const before = await main();  await page.getByRole('button', { name: 'Hide menu' }).click();
+  assert.ok(!(await page.locator('.side').isVisible())); const hidden = await main();
+  assert.ok(hidden.x < 80 && hidden.width > before.width, `content starts at the left edge and is wider (x=${hidden.x}, ${before.width} -> ${hidden.width})`); assert.ok(hidden.width > 1000, 'not squeezed');
+  await page.getByRole('button', { name: 'Show menu' }).click(); assert.ok(await page.locator('.side').isVisible()); assert.ok(Math.abs((await main()).width - before.width) < 2); await close();
+});

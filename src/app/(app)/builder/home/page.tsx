@@ -26,20 +26,16 @@ export default async function BuilderHome() {
   const tile = (title: string, status: React.ReactNode, body: React.ReactNode, href: string, cta: string) => <Card title={title}><div className="stack" style={{ gap: 8 }}><div>{status}</div><p className="muted" style={{ margin: 0 }}>{body}</p><div><Link className="btn" href={href}>{cta}</Link></div></div></Card>;
   return <div className="stack">
     <StudioNav current="home" />
-    <div className="top"><div><span className="eyebrow">Optizen Builder</span><h1>Set up {live.businessName}</h1><p className="muted">Every change follows the same path: <strong>edit → save as a draft → review → publish</strong>. Drafts never affect your team; the live version is always kept so you can roll back.</p></div></div>
+    <div className="top"><div><span className="eyebrow">Customize</span><h1>Set up {live.businessName}</h1><p className="muted">Change how your workspace works. Your changes stay private as a draft until you publish them, so your team never sees half-finished work.</p></div></div>
     {changes.length > 0 && <Notice title={`You have a saved draft with ${changes.length} change${changes.length === 1 ? '' : 's'} that is NOT live`}>It was saved {draftV ? <LocalTime iso={draftV.createdAt} /> : 'earlier'}. <Link href="/builder">Review and publish it</Link>, or discard it there.</Notice>}
     <div className="grid">
       {tile('Modules and forms', <><span className="badge">Live{liveV ? ` v${liveV.revision}` : ''}</span> {draftCfg && <span className="badge done">Draft saved</span>}</>, `${custom.length === 0 ? 'Only Leads so far.' : `${custom.length} custom module${custom.length === 1 ? '' : 's'}: ${custom.map(m => m.label).join(', ')}.`} Add modules, fields and form layouts; roll back from the version history.`, '/builder', 'Open modules')}
       {tile('Lead pipeline', <span className="badge">{live.pipeline.stages.length} stages live</span>, live.pipeline.stages.join(' → '), '/builder/pipeline', 'Edit the pipeline')}
-      {tile('Workflows', <><span className="badge">{enabled} running</span> {published > 0 && <span className="badge done">{published} paused</span>} {draftOnly > 0 && <span className="badge done">{draftOnly} draft only</span>} {(wip.count ?? 0) > 0 && <span className="badge done">{wip.count} unfinished</span>}</>, 'Automate routine work. Drafts do not run until you publish and enable them.', '/automations', 'Open workflows')}
+      {tile('Automations', <><span className="badge">{enabled} running</span> {published > 0 && <span className="badge done">{published} paused</span>} {draftOnly > 0 && <span className="badge done">{draftOnly} draft only</span>} {(wip.count ?? 0) > 0 && <span className="badge done">{wip.count} unfinished</span>}</>, 'Automate routine work. Drafts do not run until you publish and enable them.', '/automations', 'Open automations')}
       {tile('Dashboards and reports', <span className="badge">{dash.count ?? 0} dashboard{dash.count === 1 ? '' : 's'}</span>, 'Built only from real data in your workspace.', '/dashboards', 'Open dashboards')}
       {tile('Team and roles', <><span className="badge">{pending} invitation{pending === 1 ? '' : 's'} waiting</span></>, 'Invite employees, choose roles and branches, and limit what each role can see.', '/team', 'Manage the team')}
       {tile('Connections', <span className="badge done">Optional</span>, 'WhatsApp, Meta ads and other connections. Nothing is sent until a connection is set up.', '/builder/connections', 'Open connections')}
       {s.role === 'owner' && tile('Optizen AI', <span className="badge done">Owner only</span>, 'Provider status, usage and limits. You can also ask the assistant to set things up; it only prepares drafts for your approval.', '/settings/ai', 'AI settings')}
     </div>
-    <Card title="Good to know"><ul className="stack" style={{ gap: 6, margin: 0, paddingLeft: 18 }}>
-      <li>The AI assistant, the visual editors and these forms all change the same draft, so you can start in one and finish in another.</li>
-      <li>Advanced options (custom field types, stage rules, permissions, branches) are in each area&apos;s own page; the basics never need them.</li>
-      <li>Work Mode, what your team uses every day, is separate and never shows these controls to employees.</li></ul></Card>
   </div>;
 }

@@ -24,15 +24,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const builder = canBuild(s.role);
   const modules = s.config.modules.filter(m => m.status === 'active' && m.key !== 'overview').map(m => ({ label: m.label, href: `/work/${m.key}` }));
   const ops = OPS_MODULES.filter(m => opsEnabled(s.config, m.key) && opsAccess(s.role, m.key)).map(m => ({ label: m.label, href: m.href }));
-  const planned = builder ? s.config.modules.filter(m => m.status === 'planned') : [];
   const groups: { title: string; links: { label: string; href: string }[] }[] = [
     { title: 'Work', links: [{ label: 'Home', href: '/work' }, ...modules, { label: 'Follow-ups', href: '/tasks' }, ...ops] },
     { title: 'Insights', links: [{ label: 'Dashboards', href: '/dashboards' }, { label: 'Reports', href: '/reports' }] },
-    ...(builder ? [{ title: 'Set up', links: [{ label: 'Builder', href: '/builder/home' }, { label: 'Team', href: '/team' }] }] : []),
+    ...(builder ? [{ title: 'Customize', links: [{ label: 'Customize workspace', href: '/builder/home' }, { label: 'Automations', href: '/automations' }, { label: 'Team', href: '/team' }] }] : []),
     { title: 'You', links: [{ label: `Notifications${unread > 0 ? ` (${unread})` : ''}`, href: '/notifications' }, { label: 'Account', href: '/account' }] },
   ];
-  const items = [...groups.flatMap(g => g.links.map(l => ({ label: l.label.replace(/ \(\d+\)$/, ''), href: l.href }))), { label: 'Search everything', href: '/search' }, ...(builder ? [{ label: 'Workflows', href: '/automations' }, { label: 'Forms', href: '/builder/forms' }, { label: 'Pipeline', href: '/builder/pipeline' }, { label: 'Connections', href: '/builder/connections' }] : [])];
-  return <AppShell businessName={s.config.businessName} groups={groups} planned={planned.map(m => m.label)} unread={unread} items={items} signOut={signOut} ai={<AiPanel available={aiAvailable()} role={s.role} voice={speechAvailable()} />}>{children}</AppShell>;
+  const items = [...groups.flatMap(g => g.links.map(l => ({ label: l.label.replace(/ \(\d+\)$/, ''), href: l.href }))), { label: 'Search everything', href: '/search' }, ...(builder ? [{ label: 'Forms', href: '/builder/forms' }, { label: 'Pipeline', href: '/builder/pipeline' }, { label: 'Connections', href: '/builder/connections' }] : [])];
+  return <AppShell businessName={s.config.businessName} groups={groups} planned={[]} unread={unread} items={items} signOut={signOut} ai={<AiPanel available={aiAvailable()} role={s.role} voice={speechAvailable()} />}>{children}</AppShell>;
 }
 
 export const dynamic = 'force-dynamic'; // reads env + session per request; never prerender

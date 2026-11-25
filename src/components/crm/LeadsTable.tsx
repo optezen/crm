@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { bulkLeadsAction } from '../../app/(app)/work/leads/actions';
 
-export type LeadRowView = { id: string; name: string; summary: string | null; phone: string | null; email: string | null; hidden: boolean; stage: string; source: string; owner: string; ago: string; tasks: number };
+export type LeadRowView = { id: string; name: string; summary: string | null; phone: string | null; email: string | null; hidden: boolean; stage: string; source: string; owner: string; ago: string; tasks: number; due: { text: string; tone: string } | null };
 const initials = (n: string) => n.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('') || '?';
 const wa = (p: string) => `https://wa.me/${p.replace(/\D/g, '')}`;
 
@@ -23,13 +23,15 @@ export function LeadsTable({ rows, stages, owners, manager }: { rows: LeadRowVie
       <button className="btn" onClick={() => setSel(new Set())}>Clear</button></div>}
     {msg && <p className={msg.ok ? 'ok' : 'err'} role="status">{msg.text}</p>}
     <div className="table-wrap" role="region" aria-label="Leads" tabIndex={0}><table className="lt-table">
-      <thead><tr><th className="lt-chk"><input type="checkbox" aria-label="Select all leads on this page" checked={all} onChange={() => setSel(all ? new Set() : new Set(rows.map(r => r.id)))} /></th><th scope="col">Lead</th><th scope="col">Reach out</th><th scope="col">Stage</th><th scope="col">Owner</th><th scope="col">Updated</th></tr></thead>
+      <thead><tr><th className="lt-chk"><input type="checkbox" aria-label="Select all leads on this page" checked={all} onChange={() => setSel(all ? new Set() : new Set(rows.map(r => r.id)))} /></th><th scope="col">Next</th><th scope="col">Lead</th><th scope="col">Phone</th><th scope="col">Stage</th><th scope="col">Owner</th><th scope="col">Updated</th></tr></thead>
       <tbody>{rows.map(r => <tr key={r.id} className={sel.has(r.id) ? 'sel' : undefined}>
         <td className="lt-chk"><input type="checkbox" aria-label={`Select ${r.name}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td>
-        <td><Link href={`/work/leads/${r.id}`} className="lt-name"><span className="lt-av" aria-hidden>{initials(r.name)}</span><span><strong>{r.name}</strong><small className="muted">{r.source}{r.tasks > 0 ? ` · ${r.tasks} follow-up${r.tasks > 1 ? 's' : ''}` : ''}</small></span></Link></td>
+        <td>{r.due ? <span className={`due ${r.due.tone}`}>{r.due.text}</span> : null}</td>
+        <td><Link href={`/work/leads/${r.id}`} className="lt-name"><span className="lt-av" aria-hidden>{initials(r.name)}</span><span><strong>{r.name}</strong><small className="muted">{r.source}</small></span></Link></td>
         <td>{r.hidden ? <span className="muted">Hidden</span> : <span className="lt-act">
-          {r.phone && <><a href={`tel:${r.phone}`} aria-label={`Call ${r.name}`}>Call</a><a href={wa(r.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${r.name}`}>WhatsApp</a></>}
-          {r.email && <a href={`mailto:${r.email}`} aria-label={`Email ${r.name}`}>Email</a>}{!r.phone && !r.email && <span className="muted">—</span>}</span>}</td>
+          {r.phone ? <><span className="lt-ph">{r.phone}</span><a className="ic call" href={`tel:${r.phone}`} aria-label={`Call ${r.name}`} title="Call"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden><path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1 1 0 011-.25 11 11 0 003.5.56 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.2.2 2.4.56 3.5a1 1 0 01-.25 1z"/></svg></a>
+            <a className="ic wa" href={wa(r.phone)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${r.name}`} title="WhatsApp">WA</a></> : <span className="muted">—</span>}
+          {r.email && <a className="ic" href={`mailto:${r.email}`} aria-label={`Email ${r.name}`} title={r.email}>@</a>}</span>}</td>
         <td><select className="input lt-stage" aria-label={`Stage of ${r.name}`} value={r.stage} disabled={pending} onChange={e => run([r.id], { stage: e.target.value })}>{[...new Set([r.stage, ...stages])].map(s => <option key={s}>{s}</option>)}</select></td>
         <td>{r.owner}</td><td className="muted">{r.ago}</td></tr>)}</tbody></table></div>
   </div>;

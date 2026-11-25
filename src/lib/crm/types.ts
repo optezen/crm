@@ -4,7 +4,7 @@ import type { Role } from '../workspace/types.ts';
 export const LEAD_SOURCES = ['walk_in', 'phone', 'website', 'whatsapp', 'referral', 'meta_ads', 'other'] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 export const SOURCE_LABEL: Record<LeadSource, string> = { walk_in: 'Walk-in', phone: 'Phone', website: 'Website', whatsapp: 'WhatsApp', referral: 'Referral', meta_ads: 'Meta ads', other: 'Other' };
-export const PAGE_SIZE = 25;
+export const PAGE_SIZE = 100;
 export const MANAGER_ROLES: readonly Role[] = ['owner', 'admin', 'manager'];
 export const ASSIGNABLE_ROLES = ['admin', 'manager', 'employee'] as const;
 

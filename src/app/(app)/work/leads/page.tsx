@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getCrmContext, leadsModuleActive } from '../../../../lib/crm/context';
 import { isManager, listLeads, listMembers, stageCounts } from '../../../../lib/crm/service';
 import { parseListParams } from '../../../../lib/crm/validate';
-import { LEAD_SOURCES, SOURCE_LABEL } from '../../../../lib/crm/types';
+import { LEAD_SOURCES, PAGE_SIZE, SOURCE_LABEL } from '../../../../lib/crm/types';
 import { LeadsTable } from '../../../../components/crm/LeadsTable';
 import { Notice } from '../../../../components/ui/Notice';
 
@@ -17,6 +17,11 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
   if (!res.ok) return <Notice title="Leads could not be loaded">{res.error}</Notice>;
   const members = mem.ok ? mem.value : [];
   const manager = isManager(ctx.role);
+  // next open follow-up per lead on this page (one query), shown as a chip like "Today" / "Nov 26"
+  const due = new Map<string, string>();
+  if (res.value.rows.length) { const t = await ctx.db.from('tasks').select('lead_id, due_date').eq('organization_id', ctx.organizationId).eq('status', 'open').in('lead_id', res.value.rows.map(r => r.id)).order('due_date'); for (const x of t.data ?? []) if (!due.has(x.lead_id)) due.set(x.lead_id, x.due_date); }
+  const today = new Date().toISOString().slice(0, 10);
+  const chip = (id: string) => { const d = due.get(id); if (!d) return null; return { text: d === today ? 'Today' : d < today ? 'Overdue' : new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' }), tone: d < today ? 'late' : d === today ? 'today' : 'later' }; };
   const label = (m: { userId: string; email: string }) => m.userId === ctx.userId ? 'Me' : m.email;
   const who = (id: string | null) => id === null ? 'Unassigned' : id === ctx.userId ? 'Me' : members.find(m => m.userId === id)?.email ?? 'Former member';
   const { rows, total, page, pageCount } = res.value;
@@ -39,11 +44,10 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
     {rows.length === 0
       ? <div className="empty-state"><strong>{filtered ? 'No leads match.' : 'No leads yet.'}</strong><p className="muted">{filtered ? 'Try a different search or clear the filters.' : 'Add your first lead, or import a spreadsheet.'}</p><div className="row">{filtered ? <Link className="btn" href="/work/leads">Clear filters</Link> : <><Link className="btn primary" href="/work/leads/new">+ New lead</Link><Link className="btn" href="/work/leads/import">Import a CSV</Link></>}</div></div>
       : <LeadsTable stages={[...ctx.stages]} manager={manager} owners={members.map(m => ({ id: m.userId, label: label(m) }))}
-          rows={rows.map(r => ({ id: r.id, name: r.fullName, summary: r.summary, phone: r.phone, email: r.email, hidden: r.contactHidden, stage: r.stage, source: SOURCE_LABEL[r.source], owner: who(r.assignedTo), ago: ago(r.updatedAt), tasks: r.openTasks }))} />}
-    {pageCount > 1 && <nav className="pager" aria-label="Pagination">
-      {page > 1 ? <Link className="btn" href={qs({ page: page - 1 })}>← Previous</Link> : <span />}
-      <span className="muted">Page {page} of {pageCount}</span>
-      {page < pageCount ? <Link className="btn" href={qs({ page: page + 1 })}>Next →</Link> : <span />}
-    </nav>}
+          rows={rows.map(r => ({ id: r.id, name: r.fullName, summary: r.summary, phone: r.phone, email: r.email, hidden: r.contactHidden, stage: r.stage, source: SOURCE_LABEL[r.source], owner: who(r.assignedTo), ago: ago(r.updatedAt), tasks: r.openTasks, due: chip(r.id) }))} />}
+    {rows.length > 0 && <nav className="lt-foot" aria-label="Pagination"><span>Total leads <strong>{total}</strong></span>
+      <span className="row" style={{ gap: 8 }}>{page > 1 ? <Link className="btn" href={qs({ page: page - 1 })} aria-label="Previous page">←</Link> : <span className="btn" aria-hidden style={{ opacity: .35 }}>←</span>}
+        <span>{(page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, total)}</span>
+        {page < pageCount ? <Link className="btn" href={qs({ page: page + 1 })} aria-label="Next page">→</Link> : <span className="btn" aria-hidden style={{ opacity: .35 }}>→</span>}</span></nav>}
   </div>;
 }

@@ -205,3 +205,14 @@ a[aria-disabled=true]{pointer-events:none;opacity:.5}
 .ld{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
 @media(max-width:1000px){.ld{grid-template-columns:minmax(0,1fr)}}
 .ld-head .grow{flex:1;min-width:200px}
+
+/* dense list, Zoho-style */
+.lt .table-wrap{max-height:calc(100vh - 300px);overflow:auto}
+.lt-table thead th{position:sticky;top:0;background:#fafaf9;z-index:2}
+.lt-table td,.lt-table th{padding:6px 12px}.lt-av{width:30px;height:30px;font-size:12px}.lt-name{gap:10px}.lt-name small{display:none}
+.lt-act{align-items:center;flex-wrap:nowrap}.lt-ph{margin-right:2px}
+.lt-act a.ic{display:inline-grid;place-items:center;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:#eef0ee;color:#4b5563;font-size:11px;font-weight:700}
+.lt-act a.ic.call{background:#2e9e5b;color:#fff}.lt-act a.ic.wa{background:#e3f6ea;color:#1a7f4a}.lt-act a.ic:hover{filter:brightness(.93)}
+.due{display:inline-block;font-size:12px;font-weight:600;padding:2px 10px;border-radius:6px;background:#eef3fb;color:#2a5db0}
+.due.today{background:#fdf0dc;color:#b45309}.due.late{background:#fdecea;color:#b42318}
+.lt-foot{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;font-size:14px}

@@ -169,3 +169,12 @@ a[aria-disabled=true]{pointer-events:none;opacity:.5}
   .wfs-lib,.wfs-right{bottom:72px;max-height:56dvh}.wfs-root.expanded .wfs-lib,.wfs-root.expanded .wfs-right{bottom:8px}.wfs-msg{bottom:76px}
 }
 @media(prefers-reduced-motion:reduce){.wf-node{transition:none}}
+
+/* lead import */
+.imp{max-width:640px}
+.imp-drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 16px;border:2px dashed var(--line,#cfd4d0);border-radius:12px;text-align:center;cursor:pointer;background:transparent}
+.imp-drop:hover,.imp-drop:focus-within{border-color:#2d4f47;background:rgba(45,79,71,.04)}
+.imp-drop input{max-width:100%}
+.imp-drop input::file-selector-button{margin-right:10px;padding:8px 14px;border:1px solid #cfd4d0;border-radius:8px;background:#fff;font:inherit;cursor:pointer}
+.imp details{margin-top:4px}
+.imp summary{cursor:pointer;color:#2d4f47;font-weight:500}

@@ -228,7 +228,7 @@ a[aria-disabled=true]{pointer-events:none;opacity:.5}
 
 /* hideable sidebar, column picker */
 .side-toggle{padding:6px 12px;line-height:1}.topbar .side-toggle{display:none}
-@media(min-width:801px){.topbar .side-toggle{display:inline-flex}.shell[data-side-hidden]{grid-template-columns:minmax(0,1fr)}.shell[data-side-hidden] .side{display:none}}
+@media(min-width:801px){.topbar .side-toggle{display:inline-flex}.shell[data-side-hidden]{grid-template-columns:76px minmax(0,1fr)}}
 .lt-cols{position:relative;align-self:flex-end;margin-bottom:6px}.lt-cols summary{list-style:none;display:inline-flex}.lt-cols summary::-webkit-details-marker{display:none}
 .lt-cols>div{position:absolute;right:0;z-index:6;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:8px;min-width:150px;box-shadow:0 6px 20px rgba(0,0,0,.08)}
 .lt-cols{display:flex;justify-content:flex-end;position:relative}.lt-notes{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -236,7 +236,7 @@ a[aria-disabled=true]{pointer-events:none;opacity:.5}
 /* Signed-in workspace. Warm paper canvas, ink sidebar, quiet controls. Login and onboarding keep the original tokens. */
 .zcrm{--accent:#1a1916;--accent-ink:#f7f4ee;--bg:#f3f1eb;--surface:#fffcf7;--ink:#1a1916;--muted:#6f6c64;--line:#e6e1d6;--radius:12px;background:#f3f1eb;color:var(--ink)}
 .zcrm.shell{grid-template-columns:228px minmax(0,1fr)}
-.zcrm.shell[data-side-hidden]{grid-template-columns:minmax(0,1fr)}
+.zcrm.shell[data-side-hidden]{grid-template-columns:76px minmax(0,1fr)}
 .zcrm .side{background:#161513;color:#f3efe6;padding:18px 12px 14px;gap:18px;border-right:0}
 .zcrm .side .brand{color:#f7f4ee;font-size:15px;font-weight:650;letter-spacing:-.02em;padding:4px 10px 0}
 .zcrm .side .brand small{color:#9a958a;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
@@ -313,3 +313,13 @@ a[aria-disabled=true]{pointer-events:none;opacity:.5}
 .zcrm .kanban-card .input{border:0;border-radius:8px;background:#f6f3ec;font-size:12px;min-width:0}
 .zcrm .main:has(.wfs-root){padding:16px 20px 24px}
 @media(max-width:800px){.zmod-actions{margin-left:0}.zrec .ld{grid-template-columns:minmax(0,1fr)}.zrec .ld>.stack:first-child,.zrec .ld>.stack:last-child{order:0}.zcrm .main{padding:16px 16px 96px}.zmod h1,.zrec h1{font-size:24px}}
+
+/* nav icons and the collapsed icon rail */
+.nav a{align-items:center;justify-content:flex-start;gap:12px}.nav .ni{flex:none;opacity:.85}.nav a[aria-current=page] .ni{opacity:1}
+@media(min-width:801px){
+.shell[data-side-hidden] .side{padding:14px 6px;overflow:hidden}
+.shell[data-side-hidden] .side .brand,.shell[data-side-hidden] .side .eyebrow,.shell[data-side-hidden] .side form{display:none}
+.shell[data-side-hidden] .nav a{flex-direction:column;justify-content:center;gap:3px;padding:8px 2px;font-size:10.5px;text-align:center;line-height:1.15}
+.shell[data-side-hidden] .nav .nl{max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell[data-side-hidden] .navgroup{border-top:1px solid rgba(255,255,255,.08);padding-top:6px}.shell[data-side-hidden] .navgroup:first-child{border-top:0;padding-top:0}
+}

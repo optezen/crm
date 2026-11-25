@@ -1,14 +1,14 @@
 // Navigation audit (logic level, no browser): every internal link and redirect written in the source points at a route that exists, so nothing in the navigation is broken.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const walk = d => readdirSync(d).flatMap(f => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const APP = 'src/app';
 const routes = walk(APP).filter(f => /\/(page\.tsx|route\.ts)$/.test(f)).map(f => '/' + f.slice(APP.length + 1).replace(/\/(page\.tsx|route\.ts)$/, '').split('/').filter(seg => !/^\(.*\)$/.test(seg)).join('/')).map(r => (r === '/page.tsx' || r === '/' ? '/' : r.replace(/^\/$/, '/')));
 const patterns = routes.map(r => new RegExp('^' + r.replace(/\[[^\]]+\]/g, '[^/]+') + '$'));
-const exists = path => path === '/' || patterns.some(p => p.test(path));
+const exists = path => path === '/' || existsSync('public' + path) || patterns.some(p => p.test(path));
 const sources = walk('src').filter(f => /\.(tsx?|ts)$/.test(f));
 const found = [];
 for (const f of sources) {

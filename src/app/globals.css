@@ -326,3 +326,59 @@ a[aria-disabled=true]{pointer-events:none;opacity:.5}
 
 .zcrm .side .side-toggle{background:rgba(255,255,255,.08);border-color:transparent;color:#f3efe6}.zcrm .side .side-toggle:hover{background:rgba(255,255,255,.16)}
 @media(min-width:801px){.shell[data-side-hidden] .brandrow{justify-content:center}}
+
+/* ===== Zoho-style compact theme (overrides the warm-paper look above): flat, small, blue accent, navy sidebar ===== */
+.zcrm{--accent:#1a5fd0;--accent-ink:#fff;--bg:#f4f6fa;--surface:#fff;--ink:#1f2937;--muted:#566070;--line:#e1e5ee;--radius:6px;background:#f4f6fa;color:var(--ink);font-size:13.5px}
+.zcrm.shell{grid-template-columns:220px minmax(0,1fr)}
+.zcrm .side{background:#253250;color:#c9d3ea;padding:12px 8px;gap:10px}
+.zcrm .side .brand{color:#fff;font-size:14px;font-weight:600;letter-spacing:0}.zcrm .side .brand small{color:#a9b7d8;font-size:10.5px;letter-spacing:.08em}
+.zcrm .side .eyebrow{color:#a9b7d8;font-size:10.5px;padding:12px 10px 4px}
+.zcrm .side .nav a{color:#c9d3ea;font-size:13.5px;padding:8px 10px;border-radius:6px}
+.zcrm .side .nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+.zcrm .side .nav a[aria-current=page]{background:#34456d;color:#fff;font-weight:600}
+.zcrm .side .btn{background:transparent;color:#c9d3ea;border:1px solid rgba(255,255,255,.18);box-shadow:none}
+.zcrm .side .side-toggle{background:rgba(255,255,255,.08);color:#dbe4fb}
+.zcrm .main{padding:14px 18px 48px}
+.zcrm .searchbox .input{background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:none;padding:7px 12px}
+.zcrm .btn{border-radius:6px;padding:6px 12px;font-size:13px;font-weight:500;background:#fff;border:1px solid #cfd6e4;box-shadow:none;color:#1f2937}
+.zcrm .btn:hover{background:#f2f5fb}.zcrm .btn:active{transform:none}
+.zcrm .btn.primary{background:#1d6fe8;border-color:#1a5fd0;color:#fff}.zcrm .btn.primary:hover{background:#185fc9}
+.zcrm :focus-visible{outline:2px solid #1d6fe8;outline-offset:1px}
+.zcrm .input,.zcrm select.input{border-radius:6px;border:1px solid #cfd6e4;background:#fff;font-size:13px;padding:6px 10px}
+.zmod{background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 14px;align-items:center}
+.zmod h1{font-size:18px;font-weight:600;letter-spacing:0}.zmod-id p{font-size:12px}
+.zswitch{border-radius:6px;padding:2px;background:#eef1f7;box-shadow:none}.zswitch a{border-radius:4px;padding:5px 12px;font-size:13px;font-weight:500;color:#3f4856}.zswitch a[aria-current=page]{background:#1d6fe8;color:#fff}
+.zcrm .tabs{border-bottom:1px solid var(--line);background:#fff;border-radius:6px 6px 0 0;padding:0 8px}
+.zcrm .tabs a{color:#3f4856;padding:9px 12px;font-size:13px}.zcrm .tabs a[aria-current=page]{color:#1a5fd0;border-bottom-color:#1a5fd0}
+.zcrm .tabs a span{background:#eef1f7;color:#3f4856}.zcrm .tabs a[aria-current=page] span{background:#e3edfd;color:#1a5fd0}
+.zcrm .table-wrap{border:1px solid var(--line);border-radius:6px;background:#fff;box-shadow:none}
+.zcrm .lt-table thead th{background:#f7f8fb;color:#4d5766;font-size:12px;font-weight:600;border-bottom:1px solid var(--line)}
+.zcrm .lt-table td{font-size:13px}.zcrm .lt-table tbody td{height:40px}
+.zcrm .lt-table tbody tr:hover{background:#f5f8ff}.zcrm .lt-table tr.sel{background:#eaf2ff}
+.zcrm .lt-name strong{color:#1a5fd0;font-weight:500;letter-spacing:0}
+.zcrm .lt-stage{border:1px solid transparent;border-radius:4px;background:transparent;padding:3px 6px;font-size:13px;font-weight:400}.zcrm .lt-stage:hover{border-color:#cfd6e4;background:#fff}
+.zcrm .lt-act a.ic{width:24px;height:24px}
+.zcrm .lt-bulk{background:#e8f1ff;color:#1f2937;border:1px solid #c7dcfb;border-radius:6px}.zcrm .lt-bulk .btn{background:#fff;color:#1f2937;box-shadow:none}
+.zcrm .lt-cols summary{border:1px solid #cfd6e4;color:#1f2937}
+.zcrm .due{border-radius:3px}
+.zcrm .lt-foot{background:#fff;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;padding:8px 12px;color:#3f4856;margin-top:-1px}
+.zcrm .card,.zrec .card{border:1px solid var(--line);border-radius:6px;box-shadow:none;background:#fff;padding:14px}
+.zrec h1,.zcrm h1{font-size:18px;font-weight:600;letter-spacing:0}
+.zrec .ld-head{background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:none;padding:12px 14px}
+.zrec .lt-av{border-radius:6px;background:#1d6fe8;color:#fff}
+.zrec .stepper button{background:#eef1f7;color:#3f4856;font-weight:500;font-size:13px}.zrec .stepper button.past{background:#d8e6fd;color:#1a4fc0}.zrec .stepper button.now{background:#1d6fe8;color:#fff}
+.zcrm .kanban-card{border:1px solid var(--line);border-radius:6px;box-shadow:none;background:#fff}.zcrm .kanban-card a{color:#1a5fd0;font-weight:500}.zcrm .kanban-card .input{background:#fff;border:1px solid #cfd6e4}
+.zcrm .badge{background:#e3edfd;color:#1a5fd0;border-radius:4px;font-weight:500}
+.zcrm .empty-state{background:#fff;border:1px dashed #cfd6e4;border-radius:6px}
+
+/* Zoho-style toolbar: Filter, Sort, search */
+.lt-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.lt-pop{position:relative}.lt-pop>summary{list-style:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer}.lt-pop>summary::-webkit-details-marker{display:none}
+.lt-pop[open]>summary{background:#eaf2ff;border-color:#9ec1f7;color:#1a4fc0}
+.lt-pop .pop{position:absolute;left:0;top:calc(100% + 6px);z-index:20;min-width:240px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px rgba(15,23,42,.14);padding:12px;display:flex;flex-direction:column;gap:10px}
+.lt-pop .pop label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#4d5766;font-weight:600}
+.lt-pop .pop a{padding:7px 10px;border-radius:4px;text-decoration:none;color:#1f2937}.lt-pop .pop a:hover{background:#f2f5fb}.lt-pop .pop a[aria-current=true]{background:#eaf2ff;color:#1a4fc0;font-weight:600}
+.lt-pop .pop.sortpop{padding:6px;min-width:190px;gap:0}
+.lt-toolbar .lt-q{display:flex;gap:6px;margin-left:auto;flex:1 1 260px;max-width:420px}.lt-toolbar .lt-q .input{flex:1;min-width:0}
+.lt-fcount{background:#1d6fe8;color:#fff;border-radius:99px;font-size:11px;padding:0 6px}
+.zcrm select.lt-stage{border:1px solid transparent;background:transparent;padding:3px 6px}.zcrm select.lt-stage:hover,.zcrm select.lt-stage:focus{border-color:#cfd6e4;background:#fff}

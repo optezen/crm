@@ -8,6 +8,7 @@ import { LeadsTable } from '../../../../components/crm/LeadsTable';
 import { ModuleBar } from '../../../../components/crm/ModuleBar';
 import { Notice } from '../../../../components/ui/Notice';
 
+const SORTS: [string, string | null, string | null][] = [['Newest first', null, null], ['Oldest first', 'created', 'asc'], ['Name A–Z', 'name', 'asc'], ['Name Z–A', 'name', 'desc'], ['Recently updated', 'updated', 'desc']];
 type SP = Promise<Record<string, string | string[] | undefined>>;
 const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); if (m < 60) return `${m || 1}m ago`; if (m < 1440) return `${Math.round(m / 60)}h ago`; const d = Math.round(m / 1440); return d < 30 ? `${d}d ago` : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
 
@@ -35,13 +36,19 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
     <ModuleBar title="Leads" meta={`${total} ${total === 1 ? 'record' : 'records'}${filtered ? ' match' : ''}`} view="list" actions={<><Link className="btn" href="/work/leads/import">Import</Link>{manager && <a className="btn" href={exportHref}>Export</a>}<Link className="btn primary" href="/work/leads/new">Create Lead</Link></>} />
     <nav className="tabs" aria-label="Filter by stage"><Link href={qs({ stage: null })} aria-current={!params.stage ? 'page' : undefined}>All{counts.ok && <span>{sum}</span>}</Link>
       {ctx.stages.map(s => <Link key={s} href={qs({ stage: s, page: null })} aria-current={params.stage === s ? 'page' : undefined}>{s}{counts.ok && <span>{counts.value[s] ?? 0}</span>}</Link>)}</nav>
-    <form className="lt-filters" method="get" role="search" aria-label="Search and filter leads">
-      {params.stage && <input type="hidden" name="stage" value={params.stage} />}
-      <input name="q" type="search" className="input grow" aria-label="Search leads" defaultValue={params.q} placeholder="Search name, phone, email or notes" />
-      <select name="source" className="input" aria-label="Source" defaultValue={params.source ?? ''}><option value="">Any source</option>{LEAD_SOURCES.map(s => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}</select>
-      <select name="assignee" className="input" aria-label="Owner" defaultValue={params.assignee ?? ''}><option value="">Any owner</option><option value="me">Me</option><option value="unassigned">Unassigned</option>{members.filter(m => m.userId !== ctx.userId).map(m => <option key={m.userId} value={m.userId}>{m.email}</option>)}</select>
-      <button className="btn">Search</button>{filtered && <Link className="btn" href="/work/leads">Clear</Link>}
-    </form>
+    <div className="lt-toolbar" role="group" aria-label="Filter, sort and search leads">
+      <details className="lt-pop"><summary className="btn">Filter{(params.source || params.assignee) && <span className="lt-fcount">{[params.source, params.assignee].filter(Boolean).length}</span>}</summary>
+        <form className="pop" method="get" aria-label="Filter leads">
+          {params.stage && <input type="hidden" name="stage" value={params.stage} />}{params.q && <input type="hidden" name="q" value={params.q} />}
+          <label>Source<select name="source" className="input" defaultValue={params.source ?? ''}><option value="">Any source</option>{LEAD_SOURCES.map(s => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}</select></label>
+          <label>Owner<select name="assignee" className="input" defaultValue={params.assignee ?? ''}><option value="">Any owner</option><option value="me">Me</option><option value="unassigned">Unassigned</option>{members.filter(m => m.userId !== ctx.userId).map(m => <option key={m.userId} value={m.userId}>{m.email}</option>)}</select></label>
+          <div className="row"><button className="btn primary">Apply</button>{filtered && <Link className="btn" href="/work/leads">Clear all</Link>}</div></form></details>
+      <details className="lt-pop"><summary className="btn">Sort</summary>
+        <div className="pop sortpop" role="menu">{SORTS.map(([l, k, d]) => <Link key={l} role="menuitem" href={qs({ sort: k, dir: d, page: null })} aria-current={(params.sort ?? 'created') === (k ?? 'created') && (params.dir ?? 'desc') === (d ?? 'desc')}>{l}</Link>)}</div></details>
+      <form className="lt-q" method="get" role="search" aria-label="Search leads">
+        {params.stage && <input type="hidden" name="stage" value={params.stage} />}{params.source && <input type="hidden" name="source" value={params.source} />}{params.assignee && <input type="hidden" name="assignee" value={params.assignee} />}{params.sort && params.sort !== 'created' && <input type="hidden" name="sort" value={params.sort} />}{params.dir === 'asc' && <input type="hidden" name="dir" value="asc" />}
+        <input name="q" type="search" className="input" aria-label="Search leads" defaultValue={params.q} placeholder="Search name, phone, email or notes" /><button className="btn">Search</button>{filtered && <Link className="btn" href="/work/leads">Clear</Link>}</form>
+    </div>
     {rows.length === 0
       ? <div className="empty-state"><strong>{filtered ? 'No leads match.' : 'No leads yet.'}</strong><p className="muted">{filtered ? 'Try a different search or clear the filters.' : 'Add your first lead, or import a spreadsheet.'}</p><div className="row">{filtered ? <Link className="btn" href="/work/leads">Clear filters</Link> : <><Link className="btn primary" href="/work/leads/new">Create Lead</Link><Link className="btn" href="/work/leads/import">Import</Link></>}</div></div>
       : <LeadsTable sort={{ by: params.sort ?? 'created', dir: params.dir ?? 'desc', name: sortHref('name'), updated: sortHref('updated') }} stages={[...ctx.stages]} manager={manager} owners={members.map(m => ({ id: m.userId, label: label(m) }))}

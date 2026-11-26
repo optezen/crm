@@ -70,7 +70,7 @@ test('[browser][desktop] plain-English summary names the trigger, the condition 
   const { page, close } = await open(); const s = page.locator('.wfs-summary'); const t = await s.innerText();
   assert.match(t, /When a lead is created, and only if Lead source equals “website”, Optizen will assign the lead to the next employee in turn/); assert.match(t, /then create a follow-up task “Call \[Contact name\]”, due in 1 day/); assert.ok(!t.includes('{{'));
   assert.ok((await box(s)).height < 130, 'the summary stays compact'); await close();
-  const l = await open('?v=long'); const toggle = l.page.getByRole('button', { name: 'Show all' }); assert.ok(await toggle.isVisible(), 'a long summary offers Show all'); await toggle.click(); assert.ok(await l.page.getByRole('button', { name: 'Show less' }).isVisible());
+  const l = await open('?v=long', { width: 1100, height: 800 }); // the compact theme fits the text in fewer lines, so check at a narrower width const toggle = l.page.getByRole('button', { name: 'Show all' }); assert.ok(await toggle.isVisible(), 'a long summary offers Show all'); await toggle.click(); assert.ok(await l.page.getByRole('button', { name: 'Show less' }).isVisible());
   assert.match(await l.page.locator('.wfs-summary').innerText(), /request a whatsapp message “Hi \[Contact name\], thanks for getting in touch\.”/); await l.close();
 });
 
